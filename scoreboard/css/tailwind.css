@@ -1,0 +1,247 @@
+/* Custom Basketball Scoreboard Styles */
+/* This file provides additional custom styles beyond TailwindCSS */
+
+/* Digital LED Font Import */
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap');
+
+/* Custom CSS Variables */
+:root {
+  --basketball-orange: #FF6B35;
+  --basketball-dark-orange: #E55529;
+  --basketball-light: #FFA366;
+  --shadow-glow: 0 0 20px rgba(255, 107, 53, 0.4);
+  --shadow-glow-intense: 0 0 40px rgba(255, 107, 53, 0.8);
+}
+
+/* Enhanced Glass Effect */
+.glass-card-enhanced {
+  backdrop-filter: blur(15px);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 107, 53, 0.2);
+  box-shadow: var(--shadow-glow);
+}
+
+/* Enhanced Digital Font */
+.digital-font-enhanced {
+  font-family: 'Orbitron', 'Courier New', monospace;
+  text-shadow: 
+    0 0 5px var(--basketball-orange),
+    0 0 10px var(--basketball-orange),
+    0 0 15px var(--basketball-orange);
+  letter-spacing: 0.1em;
+}
+
+/* Score Animation Effects */
+@keyframes scoreFlash {
+  0%, 100% { 
+    color: white;
+    text-shadow: 0 0 10px var(--basketball-orange);
+  }
+  25% { 
+    color: var(--basketball-orange);
+    text-shadow: var(--shadow-glow-intense);
+  }
+  50% { 
+    color: #FFD700;
+    text-shadow: 0 0 30px #FFD700;
+  }
+  75% { 
+    color: var(--basketball-orange);
+    text-shadow: var(--shadow-glow-intense);
+  }
+}
+
+.score-flash {
+  animation: scoreFlash 1s ease-in-out;
+}
+
+/* Basketball Bounce Animation */
+@keyframes basketballBounce {
+  0%, 100% { 
+    transform: translateY(0) scale(1) rotate(0deg);
+  }
+  25% { 
+    transform: translateY(-15px) scale(1.1) rotate(90deg);
+  }
+  50% { 
+    transform: translateY(-20px) scale(1.2) rotate(180deg);
+  }
+  75% { 
+    transform: translateY(-10px) scale(1.1) rotate(270deg);
+  }
+}
+
+.basketball-bounce {
+  animation: basketballBounce 1.2s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+/* Loading Animation */
+@keyframes loadingPulse {
+  0%, 100% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+}
+
+.loading-pulse {
+  animation: loadingPulse 2s ease-in-out infinite;
+}
+
+/* Button Hover Effects */
+.btn-basketball {
+  background: linear-gradient(135deg, var(--basketball-orange), var(--basketball-dark-orange));
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(255, 107, 53, 0.3);
+}
+
+.btn-basketball:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(255, 107, 53, 0.4);
+}
+
+.btn-basketball:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 10px rgba(255, 107, 53, 0.3);
+}
+
+/* Glow Border Animation */
+@keyframes glowBorder {
+  0%, 100% {
+    border-color: rgba(255, 107, 53, 0.3);
+    box-shadow: var(--shadow-glow);
+  }
+  50% {
+    border-color: rgba(255, 107, 53, 0.6);
+    box-shadow: var(--shadow-glow-intense);
+  }
+}
+
+.glow-border-animated {
+  animation: glowBorder 3s ease-in-out infinite;
+}
+
+/* Custom Scrollbar */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--basketball-orange) rgba(255, 255, 255, 0.1);
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--basketball-orange);
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--basketball-dark-orange);
+}
+
+/* Live Indicator */
+.live-indicator {
+  position: relative;
+}
+
+.live-indicator::before {
+  content: '';
+  position: absolute;
+  left: -15px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 8px;
+  height: 8px;
+  background: #22c55e;
+  border-radius: 50%;
+  animation: livePulse 2s ease-in-out infinite;
+}
+
+@keyframes livePulse {
+  0%, 100% {
+    opacity: 1;
+    transform: translateY(-50%) scale(1);
+  }
+  50% {
+    opacity: 0.3;
+    transform: translateY(-50%) scale(1.2);
+  }
+}
+
+/* Team Color Indicators */
+.team-a-accent {
+  border-left: 4px solid #3b82f6;
+}
+
+.team-b-accent {
+  border-left: 4px solid #ef4444;
+}
+
+/* Enhanced Mobile Styles */
+@media (max-width: 768px) {
+  .digital-font-enhanced {
+    letter-spacing: 0.05em;
+  }
+  
+  .mobile-stack {
+    flex-direction: column;
+    gap: 1rem;
+  }
+  
+  .mobile-full {
+    width: 100%;
+  }
+}
+
+/* Print Styles (for match reports) */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  
+  .print-friendly {
+    background: white !important;
+    color: black !important;
+    box-shadow: none !important;
+  }
+}
+
+/* Accessibility Improvements */
+.focus-visible:focus {
+  outline: 2px solid var(--basketball-orange);
+  outline-offset: 2px;
+}
+
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* High Contrast Mode */
+@media (prefers-contrast: high) {
+  :root {
+    --basketball-orange: #FF8C00;
+    --basketball-dark-orange: #FF4500;
+  }
+  
+  .glass-card,
+  .glass-card-enhanced {
+    border: 2px solid var(--basketball-orange);
+    background: rgba(0, 0, 0, 0.8);
+  }
+}

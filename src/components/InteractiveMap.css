@@ -1,0 +1,259 @@
+.interactive-map {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+/* Custom Markers */
+.custom-marker {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  position: relative;
+}
+
+.marker-icon {
+  font-size: 2rem;
+  filter: drop-shadow(0 0 10px rgba(0, 0, 0, 0.5));
+  animation: bounce-marker 2s ease-in-out infinite;
+}
+
+@keyframes bounce-marker {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.marker-label {
+  background: rgba(0, 0, 0, 0.9);
+  color: var(--color-white);
+  padding: 8px 15px;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+  border: 1px solid rgba(249, 115, 22, 0.5);
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+}
+
+.start-marker .marker-label {
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.nmims-marker {
+  position: relative;
+}
+
+.nmims-marker .marker-icon {
+  animation: spin-basketball 3s linear infinite;
+}
+
+@keyframes spin-basketball {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.nmims-marker .marker-label {
+  background: linear-gradient(135deg, var(--color-orange), #ea580c);
+  border-color: var(--color-orange);
+  box-shadow: 0 5px 20px rgba(249, 115, 22, 0.5);
+}
+
+/* Marker Pulse Effect */
+.marker-pulse {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 60px;
+  height: 60px;
+  background: rgba(249, 115, 22, 0.3);
+  border-radius: 50%;
+  animation: pulse-marker 2s ease-out infinite;
+}
+
+@keyframes pulse-marker {
+  0% {
+    transform: translate(-50%, -50%) scale(0.5);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(2);
+    opacity: 0;
+  }
+}
+
+/* Map Placeholder (when no token) */
+.map-placeholder {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, rgba(249, 115, 22, 0.05) 0%, rgba(0, 0, 0, 0.9) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  border-radius: 20px;
+}
+
+.placeholder-content {
+  text-align: center;
+  max-width: 600px;
+  color: var(--color-white);
+}
+
+.placeholder-content h3 {
+  font-family: 'Bebas Neue', cursive;
+  font-size: 2.5rem;
+  color: var(--color-orange);
+  margin-bottom: 20px;
+  letter-spacing: 2px;
+}
+
+.placeholder-content p {
+  color: rgba(255, 255, 255, 0.8);
+  margin-bottom: 15px;
+  line-height: 1.6;
+}
+
+.env-code {
+  display: block;
+  background: rgba(0, 0, 0, 0.5);
+  color: var(--color-orange);
+  padding: 15px 20px;
+  border-radius: 8px;
+  margin: 20px 0;
+  font-family: 'Courier New', monospace;
+  border: 1px solid rgba(249, 115, 22, 0.3);
+}
+
+.env-note {
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.6);
+  margin-top: 15px;
+}
+
+.env-note a {
+  color: var(--color-orange);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.env-note a:hover {
+  text-decoration: underline;
+}
+
+/* Route Preview */
+.route-preview {
+  margin-top: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+}
+
+.route-point {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.point-icon {
+  font-size: 2.5rem;
+  filter: drop-shadow(0 0 10px rgba(249, 115, 22, 0.5));
+}
+
+.point-name {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.route-line {
+  width: 100px;
+  height: 4px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.3), var(--color-orange), rgba(255, 255, 255, 0.3));
+  border-radius: 2px;
+  position: relative;
+}
+
+.route-line::after {
+  content: '';
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  background: var(--color-orange);
+  border-radius: 50%;
+  top: 50%;
+  transform: translateY(-50%);
+  animation: move-along 2s ease-in-out infinite;
+}
+
+@keyframes move-along {
+  0%, 100% {
+    left: 0;
+  }
+  50% {
+    left: calc(100% - 20px);
+  }
+}
+
+/* Map Controls Styling */
+.mapboxgl-ctrl-group {
+  background: rgba(0, 0, 0, 0.9) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5) !important;
+}
+
+.mapboxgl-ctrl-group button {
+  background-color: rgba(0, 0, 0, 0.8) !important;
+  border-color: rgba(249, 115, 22, 0.3) !important;
+}
+
+.mapboxgl-ctrl-group button:hover {
+  background-color: rgba(249, 115, 22, 0.2) !important;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .marker-label {
+    font-size: 0.75rem;
+    padding: 6px 12px;
+  }
+
+  .marker-icon {
+    font-size: 1.5rem;
+  }
+
+  .route-preview {
+    flex-direction: column;
+    gap: 15px;
+  }
+
+  .route-line {
+    width: 4px;
+    height: 80px;
+  }
+
+  .route-line::after {
+    animation: move-vertical 2s ease-in-out infinite;
+  }
+
+  @keyframes move-vertical {
+    0%, 100% {
+      top: 0;
+    }
+    50% {
+      top: calc(100% - 20px);
+    }
+  }
+}

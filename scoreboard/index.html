@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🏀 Live Basketball Scoreboard - NMIMS Tournament 2025</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        'orbitron': ['Orbitron', 'monospace'],
+                        'inter': ['Inter', 'sans-serif']
+                    },
+                    colors: {
+                        'basketball': {
+                            'orange': '#FF6B35',
+                            'dark-orange': '#E55529',
+                            'light': '#FFA366'
+                        }
+                    },
+                    keyframes: {
+                        'glow-pulse': {
+                            '0%, 100%': { boxShadow: '0 0 20px rgba(255, 107, 53, 0.5)' },
+                            '50%': { boxShadow: '0 0 40px rgba(255, 107, 53, 0.8)' }
+                        },
+                        'bounce-basketball': {
+                            '0%, 100%': { transform: 'translateY(0) rotate(0deg)' },
+                            '50%': { transform: 'translateY(-10px) rotate(180deg)' }
+                        },
+                        'flash': {
+                            '0%, 100%': { opacity: '1' },
+                            '50%': { opacity: '0.3' }
+                        }
+                    },
+                    animation: {
+                        'glow-pulse': 'glow-pulse 2s ease-in-out infinite',
+                        'bounce-basketball': 'bounce-basketball 1s ease-in-out',
+                        'flash': 'flash 0.5s ease-in-out 3 times'
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        .digital-font {
+            font-family: 'Orbitron', monospace;
+            text-shadow: 0 0 10px rgba(255, 107, 53, 0.8);
+        }
+        
+        .glass-card {
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 107, 53, 0.3);
+        }
+        
+        .glow-border {
+            box-shadow: 0 0 20px rgba(255, 107, 53, 0.4);
+        }
+        
+        .score-updated {
+            animation: flash 0.5s ease-in-out 3;
+        }
+        
+        .basketball-bg {
+            background: linear-gradient(135deg, #000000 0%, #1a1a1a 50%, #2d1810 100%);
+        }
+    </style>
+</head>
+<body class="basketball-bg text-white min-h-screen">
+    <!-- Header -->
+    <header class="bg-black/50 backdrop-blur-md border-b border-basketball-orange/30">
+        <div class="container mx-auto px-4 py-6">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-4">
+                    <div class="w-12 h-12 bg-basketball-orange rounded-full flex items-center justify-center font-bold text-xl">
+                        🏀
+                    </div>
+                    <div>
+                        <h1 class="text-2xl font-bold text-basketball-orange">NMIMS Tournament 2025</h1>
+                        <p class="text-gray-300 text-sm">Live Basketball Scoreboard</p>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <div class="text-sm text-gray-400">November 8-9, 2025</div>
+                    <div class="text-lg font-semibold" id="match-status">● LIVE</div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Scoreboard -->
+    <main class="container mx-auto px-4 py-8">
+        
+        <!-- Match Info -->
+        <div class="text-center mb-8">
+            <h2 class="text-3xl md:text-4xl font-bold mb-2" id="match-title">Inter-NMIMS Championship</h2>
+            <div class="text-basketball-orange font-semibold" id="match-quarter">Quarter 1</div>
+        </div>
+
+        <!-- Main Scoreboard Card -->
+        <div class="glass-card glow-border rounded-3xl p-8 mb-8 max-w-4xl mx-auto">
+            
+            <!-- Timer Display -->
+            <div class="text-center mb-8">
+                <div class="digital-font text-6xl md:text-8xl font-black text-basketball-orange mb-2" id="game-timer">12:00</div>
+                <div class="text-lg text-gray-300" id="timer-status">Game Time</div>
+            </div>
+
+            <!-- Teams and Scores -->
+            <div class="grid md:grid-cols-3 items-center gap-8">
+                
+                <!-- Team A -->
+                <div class="text-center">
+                    <div class="bg-gray-800/50 rounded-2xl p-6 border border-gray-600">
+                        <h3 class="text-2xl font-bold mb-4 text-basketball-orange" id="team-a-name">NMIMS Mumbai</h3>
+                        <div class="digital-font text-7xl md:text-8xl font-black text-white" id="score-a">0</div>
+                        <div class="text-sm text-gray-400 mt-2">Team A</div>
+                    </div>
+                </div>
+
+                <!-- VS Separator -->
+                <div class="text-center">
+                    <div class="text-4xl md:text-6xl font-black text-basketball-orange animate-pulse">
+                        🏀
+                    </div>
+                    <div class="text-lg font-bold text-gray-300 mt-2">VS</div>
+                </div>
+
+                <!-- Team B -->
+                <div class="text-center">
+                    <div class="bg-gray-800/50 rounded-2xl p-6 border border-gray-600">
+                        <h3 class="text-2xl font-bold mb-4 text-basketball-orange" id="team-b-name">NMIMS Hyderabad</h3>
+                        <div class="digital-font text-7xl md:text-8xl font-black text-white" id="score-b">0</div>
+                        <div class="text-sm text-gray-400 mt-2">Team B</div>
+                    </div>
+                </div>
+                
+            </div>
+        </div>
+
+        <!-- Player Stats -->
+        <div class="grid md:grid-cols-2 gap-8 max-w-6xl mx-auto">
+            
+            <!-- Team A Players -->
+            <div class="glass-card rounded-2xl p-6">
+                <h3 class="text-xl font-bold text-basketball-orange mb-4 flex items-center">
+                    <span class="mr-2">👥</span>
+                    <span id="team-a-players-title">NMIMS Mumbai Players</span>
+                </h3>
+                <div class="space-y-3" id="team-a-players">
+                    <div class="flex justify-between items-center bg-gray-800/50 rounded-lg p-3">
+                        <span class="font-medium">Player 1</span>
+                        <div class="flex space-x-4">
+                            <span class="text-basketball-orange">0 pts</span>
+                            <span class="text-red-400">0 fouls</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Team B Players -->
+            <div class="glass-card rounded-2xl p-6">
+                <h3 class="text-xl font-bold text-basketball-orange mb-4 flex items-center">
+                    <span class="mr-2">👥</span>
+                    <span id="team-b-players-title">NMIMS Hyderabad Players</span>
+                </h3>
+                <div class="space-y-3" id="team-b-players">
+                    <div class="flex justify-between items-center bg-gray-800/50 rounded-lg p-3">
+                        <span class="font-medium">Player 1</span>
+                        <div class="flex space-x-4">
+                            <span class="text-basketball-orange">0 pts</span>
+                            <span class="text-red-400">0 fouls</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Match Actions & Highlights -->
+        <div class="mt-8 max-w-4xl mx-auto">
+            <div class="glass-card rounded-2xl p-6">
+                <h3 class="text-xl font-bold text-basketball-orange mb-4 flex items-center">
+                    <span class="mr-2">⚡</span>
+                    Live Updates
+                </h3>
+                <div id="live-updates" class="space-y-2 max-h-40 overflow-y-auto">
+                    <div class="text-gray-300 text-sm bg-gray-800/30 rounded p-2">
+                        <span class="text-basketball-orange">Game Started</span> - Welcome to the championship!
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-black/50 border-t border-basketball-orange/30 mt-12 py-6">
+        <div class="container mx-auto px-4 text-center">
+            <div class="text-basketball-orange font-bold mb-2">🏀 Inter-NMIMS Basketball Tournament 2025</div>
+            <div class="text-gray-400 text-sm">NMIMS Hyderabad Campus | November 8-9, 2025</div>
+            <div class="text-xs text-gray-500 mt-2">Live scoreboard updates every second</div>
+        </div>
+    </footer>
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+        <div class="text-center">
+            <div class="text-6xl animate-bounce-basketball mb-4">🏀</div>
+            <div class="text-xl font-bold text-basketball-orange">Loading Live Scoreboard...</div>
+            <div class="text-gray-400">Connecting to real-time updates</div>
+        </div>
+    </div>
+
+    <!-- Firebase and Scoreboard JavaScript -->
+    <script type="module" src="js/firebase.js"></script>
+    <script type="module" src="js/scoreboard.js"></script>
+</body>
+</html>

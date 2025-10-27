@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Firebase Auth Test</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-white p-8">
+    <div class="max-w-md mx-auto">
+        <h1 class="text-2xl font-bold mb-4">Firebase Authentication Test</h1>
+        <div id="auth-status" class="mb-4 p-4 rounded bg-gray-800"></div>
+        <button id="test-signin" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded mr-2">Test Sign In</button>
+        <button id="test-signout" class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded">Sign Out</button>
+        <div id="error-log" class="mt-4 p-4 bg-red-900 rounded hidden"></div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js';
+        import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js';
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyAWCSuJ4CFUy_mIiVJSECc8hGZok3yfWnY",
+            authDomain: "internmimsbasketball.firebaseapp.com",
+            databaseURL: "https://internmimsbasketball-default-rtdb.firebaseio.com",
+            projectId: "internmimsbasketball",
+            storageBucket: "internmimsbasketball.firebasestorage.app",
+            messagingSenderId: "97822648007",
+            appId: "1:97822648007:web:cfc93e3a6fb8233c6c40e2",
+            measurementId: "G-KM2NGQ30TJ"
+        };
+
+        console.log('Initializing Firebase...');
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const provider = new GoogleAuthProvider();
+
+        const authStatus = document.getElementById('auth-status');
+        const errorLog = document.getElementById('error-log');
+        const testSigninBtn = document.getElementById('test-signin');
+        const testSignoutBtn = document.getElementById('test-signout');
+
+        function showError(message) {
+            errorLog.textContent = message;
+            errorLog.classList.remove('hidden');
+            console.error(message);
+        }
+
+        function updateAuthStatus(user) {
+            if (user) {
+                authStatus.innerHTML = `
+                    <div class="text-green-400">✓ Signed in as:</div>
+                    <div>${user.displayName || user.email}</div>
+                    <div class="text-xs text-gray-400">UID: ${user.uid}</div>
+                `;
+            } else {
+                authStatus.innerHTML = '<div class="text-red-400">Not signed in</div>';
+            }
+        }
+
+        // Monitor auth state
+        onAuthStateChanged(auth, (user) => {
+            console.log('Auth state changed:', user);
+            updateAuthStatus(user);
+        });
+
+        // Test sign in
+        testSigninBtn.addEventListener('click', async () => {
+            try {
+                console.log('Attempting to sign in...');
+                errorLog.classList.add('hidden');
+                
+                // Add additional configuration to provider
+                provider.addScope('email');
+                provider.addScope('profile');
+                
+                const result = await signInWithPopup(auth, provider);
+                console.log('Sign in successful:', result);
+                
+            } catch (error) {
+                console.error('Sign in error:', error);
+                showError(`Sign in failed: ${error.code} - ${error.message}`);
+            }
+        });
+
+        // Test sign out
+        testSignoutBtn.addEventListener('click', async () => {
+            try {
+                await signOut(auth);
+                console.log('Sign out successful');
+                errorLog.classList.add('hidden');
+            } catch (error) {
+                console.error('Sign out error:', error);
+                showError(`Sign out failed: ${error.message}`);
+            }
+        });
+
+        console.log('Firebase Auth Test initialized');
+    </script>
+</body>
+</html>

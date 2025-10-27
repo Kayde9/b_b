@@ -1,0 +1,93 @@
+{
+  "rules": {
+    "matches": {
+      "current": {
+        ".read": true,
+        ".write": "auth != null && root.child('admins').child(auth.uid).val() === true",
+        ".validate": "newData.hasChildren(['teamA', 'teamB', 'scoreA', 'scoreB', 'timer', 'quarter'])",
+        "teamA": {
+          ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 100"
+        },
+        "teamB": {
+          ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 100"
+        },
+        "scoreA": {
+          ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 999"
+        },
+        "scoreB": {
+          ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 999"
+        },
+        "timer": {
+          ".validate": "newData.isString() && newData.val().length <= 10"
+        },
+        "quarter": {
+          ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 10"
+        },
+        "isRunning": {
+          ".validate": "newData.isBoolean()"
+        },
+        "lastUpdated": {
+          ".validate": "newData.isNumber()"
+        },
+        "players": {
+          ".read": true,
+          ".write": "auth != null && root.child('admins').child(auth.uid).val() === true",
+          "$playerId": {
+            ".validate": "newData.hasChildren(['name', 'team', 'points', 'fouls'])",
+            "name": {
+              ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 100"
+            },
+            "team": {
+              ".validate": "newData.isString() && (newData.val() == 'A' || newData.val() == 'B')"
+            },
+            "points": {
+              ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 999"
+            },
+            "fouls": {
+              ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 6"
+            },
+            "number": {
+              ".validate": "newData.isString() && newData.val().length <= 10"
+            }
+          }
+        }
+      },
+      "scheduled": {
+        ".read": true,
+        ".write": "auth != null && root.child('admins').child(auth.uid).val() === true",
+        "$matchId": {
+          ".validate": "newData.hasChildren(['teamA', 'teamB', 'date', 'time', 'court', 'status'])",
+          "teamA": {
+            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 100"
+          },
+          "teamB": {
+            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 100"
+          },
+          "date": {
+            ".validate": "newData.isString()"
+          },
+          "time": {
+            ".validate": "newData.isString()"
+          },
+          "court": {
+            ".validate": "newData.isString() && newData.val().length <= 50"
+          },
+          "status": {
+            ".validate": "newData.isString() && (newData.val() == 'upcoming' || newData.val() == 'live' || newData.val() == 'completed')"
+          }
+        }
+      },
+      "past": {
+        ".read": true,
+        ".write": "auth != null && root.child('admins').child(auth.uid).val() === true"
+      }
+    },
+    "admins": {
+      ".read": "auth != null && root.child('admins').child(auth.uid).val() === true",
+      ".write": false,
+      "$uid": {
+        ".validate": "newData.isBoolean()"
+      }
+    }
+  }
+}

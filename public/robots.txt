@@ -1,0 +1,10 @@
+# https://www.robotstxt.org/robotstxt.html
+# Robots.txt for Inter-NMIMS Basketball Tournament 2025
+
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /admin-scoring
+
+# Sitemap (update with your actual domain after deployment)
+# Sitemap: https://yourdomain.com/sitemap.xml

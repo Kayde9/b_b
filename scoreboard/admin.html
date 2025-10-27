@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🏀 Admin Scoring Panel - NMIMS Tournament 2025</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        'orbitron': ['Orbitron', 'monospace'],
+                        'inter': ['Inter', 'sans-serif']
+                    },
+                    colors: {
+                        'basketball': {
+                            'orange': '#FF6B35',
+                            'dark-orange': '#E55529',
+                            'light': '#FFA366'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        .digital-font {
+            font-family: 'Orbitron', monospace;
+            text-shadow: 0 0 10px rgba(255, 107, 53, 0.8);
+        }
+        
+        .glass-card {
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 107, 53, 0.3);
+        }
+        
+        .basketball-bg {
+            background: linear-gradient(135deg, #000000 0%, #1a1a1a 50%, #2d1810 100%);
+        }
+        
+        button:active {
+            transform: scale(0.95);
+        }
+        
+        .score-flash {
+            animation: scoreFlash 1s ease-in-out;
+        }
+        
+        @keyframes scoreFlash {
+            0%, 100% { 
+                color: white;
+                text-shadow: 0 0 10px #FF6B35;
+            }
+            50% { 
+                color: #FFD700;
+                text-shadow: 0 0 20px #FFD700;
+                transform: scale(1.1);
+            }
+        }
+        
+        @keyframes bounce-basketball {
+            0%, 100% { 
+                transform: translateY(0) rotate(0deg);
+            }
+            50% { 
+                transform: translateY(-10px) rotate(180deg);
+            }
+        }
+        
+        .animate-bounce-basketball {
+            animation: bounce-basketball 1.2s ease-in-out;
+        }
+        
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .fouled-out {
+            background: linear-gradient(45deg, transparent 40%, rgba(239, 68, 68, 0.2) 50%, transparent 60%);
+        }
+    </style>
+</head>
+<body class="basketball-bg text-white min-h-screen">
+    
+    <!-- Authentication Modal -->
+    <div id="auth-modal" class="fixed inset-0 bg-black/90 flex items-center justify-center z-50">
+        <div class="glass-card rounded-2xl p-8 max-w-md w-full mx-4">
+            <div class="text-center">
+                <div class="text-6xl mb-4">🏀</div>
+                <h2 class="text-2xl font-bold text-basketball-orange mb-4">Admin Login Required</h2>
+                <p class="text-gray-300 mb-6">Please sign in to access the scoring panel</p>
+                <button id="google-signin" class="w-full bg-basketball-orange hover:bg-basketball-dark-orange text-white font-bold py-3 px-6 rounded-lg transition-colors">
+                    Sign in with Google
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Header -->
+    <header class="bg-black/50 backdrop-blur-md border-b border-basketball-orange/30">
+        <div class="container mx-auto px-4 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-4">
+                    <div class="w-10 h-10 bg-basketball-orange rounded-full flex items-center justify-center font-bold">
+                        🏀
+                    </div>
+                    <div>
+                        <h1 class="text-xl font-bold text-basketball-orange">Admin Scoring Panel</h1>
+                        <p class="text-gray-300 text-sm">NMIMS Tournament 2025</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <div class="text-sm">
+                        <span class="text-gray-400">Logged in as:</span>
+                        <span id="user-name" class="text-basketball-orange ml-1">Admin</span>
+                    </div>
+                    <button id="sign-out" class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                        Sign Out
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Admin Panel -->
+    <main class="container mx-auto px-4 py-6">
+
+        <!-- Match Setup -->
+        <div class="glass-card rounded-2xl p-6 mb-6">
+            <h2 class="text-xl font-bold text-basketball-orange mb-4 flex items-center">
+                <span class="mr-2">⚙️</span>
+                Match Setup
+            </h2>
+            <div class="grid md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium mb-2">Team A Name</label>
+                    <input type="text" id="team-a-input" placeholder="Enter Team A name" 
+                           class="w-full bg-gray-800 border border-gray-600 rounded-lg px-4 py-2 text-white">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-2">Team B Name</label>
+                    <input type="text" id="team-b-input" placeholder="Enter Team B name"
+                           class="w-full bg-gray-800 border border-gray-600 rounded-lg px-4 py-2 text-white">
+                </div>
+            </div>
+            <button id="update-teams" class="mt-4 bg-basketball-orange hover:bg-basketball-dark-orange text-white font-bold py-2 px-6 rounded-lg transition-colors">
+                Update Team Names
+            </button>
+        </div>
+
+        <!-- Current Score Display -->
+        <div class="glass-card rounded-2xl p-6 mb-6">
+            <h2 class="text-xl font-bold text-basketball-orange mb-4">Current Match Status</h2>
+            <div class="grid md:grid-cols-3 items-center gap-4">
+                <div class="text-center">
+                    <h3 class="text-lg font-semibold text-basketball-orange" id="current-team-a">Team A</h3>
+                    <div class="digital-font text-4xl font-black" id="current-score-a">0</div>
+                </div>
+                <div class="text-center">
+                    <div class="digital-font text-3xl font-bold text-basketball-orange" id="current-timer">12:00</div>
+                    <div class="text-sm text-gray-400">Quarter <span id="current-quarter">1</span></div>
+                </div>
+                <div class="text-center">
+                    <h3 class="text-lg font-semibold text-basketball-orange" id="current-team-b">Team B</h3>
+                    <div class="digital-font text-4xl font-black" id="current-score-b">0</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Scoring Controls -->
+        <div class="grid lg:grid-cols-2 gap-6 mb-6">
+            
+            <!-- Team A Scoring -->
+            <div class="glass-card rounded-2xl p-6">
+                <h3 class="text-lg font-bold text-basketball-orange mb-4 flex items-center">
+                    <span class="mr-2">🏀</span>
+                    <span id="team-a-title">Team A Scoring</span>
+                </h3>
+                <div class="grid grid-cols-3 gap-3 mb-4">
+                    <button id="team-a-plus-1" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg transition-colors">
+                        +1 Point
+                    </button>
+                    <button id="team-a-plus-2" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition-colors">
+                        +2 Points
+                    </button>
+                    <button id="team-a-plus-3" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-4 rounded-lg transition-colors">
+                        +3 Points
+                    </button>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <button id="team-a-minus-1" class="bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+                        -1 Point
+                    </button>
+                    <button id="team-a-reset" class="bg-gray-600 hover:bg-gray-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+                        Reset Score
+                    </button>
+                </div>
+            </div>
+
+            <!-- Team B Scoring -->
+            <div class="glass-card rounded-2xl p-6">
+                <h3 class="text-lg font-bold text-basketball-orange mb-4 flex items-center">
+                    <span class="mr-2">🏀</span>
+                    <span id="team-b-title">Team B Scoring</span>
+                </h3>
+                <div class="grid grid-cols-3 gap-3 mb-4">
+                    <button id="team-b-plus-1" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg transition-colors">
+                        +1 Point
+                    </button>
+                    <button id="team-b-plus-2" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition-colors">
+                        +2 Points
+                    </button>
+                    <button id="team-b-plus-3" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-4 rounded-lg transition-colors">
+                        +3 Points
+                    </button>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <button id="team-b-minus-1" class="bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+                        -1 Point
+                    </button>
+                    <button id="team-b-reset" class="bg-gray-600 hover:bg-gray-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+                        Reset Score
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Timer Controls -->
+        <div class="glass-card rounded-2xl p-6 mb-6">
+            <h2 class="text-xl font-bold text-basketball-orange mb-4 flex items-center">
+                <span class="mr-2">⏱️</span>
+                Game Timer Controls
+            </h2>
+            <div class="grid md:grid-cols-4 gap-4 mb-4">
+                <button id="start-timer" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg transition-colors">
+                    Start Timer
+                </button>
+                <button id="pause-timer" class="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-3 px-4 rounded-lg transition-colors">
+                    Pause Timer
+                </button>
+                <button id="reset-timer" class="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-lg transition-colors">
+                    Reset Timer
+                </button>
+                <button id="next-quarter" class="bg-basketball-orange hover:bg-basketball-dark-orange text-white font-bold py-3 px-4 rounded-lg transition-colors">
+                    Next Quarter
+                </button>
+            </div>
+            <div class="grid md:grid-cols-3 gap-4">
+                <div>
+                    <label class="block text-sm font-medium mb-2">Set Minutes</label>
+                    <input type="number" id="timer-minutes" min="0" max="20" value="12" 
+                           class="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-2">Set Seconds</label>
+                    <input type="number" id="timer-seconds" min="0" max="59" value="0"
+                           class="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white">
+                </div>
+                <div class="flex items-end">
+                    <button id="set-timer" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+                        Set Timer
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Player Management -->
+        <div class="glass-card rounded-2xl p-6 mb-6">
+            <h2 class="text-xl font-bold text-basketball-orange mb-4 flex items-center">
+                <span class="mr-2">👥</span>
+                Player Management
+            </h2>
+            
+            <div class="grid md:grid-cols-2 gap-6">
+                <!-- Team A Players -->
+                <div>
+                    <h3 class="text-lg font-semibold mb-3" id="team-a-players-title">Team A Players</h3>
+                    <div class="space-y-2 mb-4" id="team-a-player-list">
+                        <!-- Players will be dynamically added here -->
+                    </div>
+                    <div class="flex gap-2">
+                        <input type="text" id="new-player-a" placeholder="Add player name"
+                               class="flex-1 bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white">
+                        <button id="add-player-a" class="bg-basketball-orange hover:bg-basketball-dark-orange text-white px-4 py-2 rounded-lg transition-colors">
+                            Add
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Team B Players -->
+                <div>
+                    <h3 class="text-lg font-semibold mb-3" id="team-b-players-title">Team B Players</h3>
+                    <div class="space-y-2 mb-4" id="team-b-player-list">
+                        <!-- Players will be dynamically added here -->
+                    </div>
+                    <div class="flex gap-2">
+                        <input type="text" id="new-player-b" placeholder="Add player name"
+                               class="flex-1 bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white">
+                        <button id="add-player-b" class="bg-basketball-orange hover:bg-basketball-dark-orange text-white px-4 py-2 rounded-lg transition-colors">
+                            Add
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="glass-card rounded-2xl p-6">
+            <h2 class="text-xl font-bold text-basketball-orange mb-4 flex items-center">
+                <span class="mr-2">⚡</span>
+                Quick Actions
+            </h2>
+            <div class="grid md:grid-cols-4 gap-4">
+                <button id="new-match" class="bg-basketball-orange hover:bg-basketball-dark-orange text-white font-bold py-3 px-4 rounded-lg transition-colors">
+                    New Match
+                </button>
+                <button id="end-match" class="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-lg transition-colors">
+                    End Match
+                </button>
+                <a href="index.html" target="_blank" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition-colors text-center">
+                    View Scoreboard
+                </a>
+                <button id="export-data" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 px-4 rounded-lg transition-colors">
+                    Export Data
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <!-- Status Messages -->
+    <div id="status-message" class="fixed bottom-4 right-4 hidden">
+        <div class="bg-basketball-orange text-white px-6 py-3 rounded-lg shadow-lg">
+            <div class="font-medium" id="status-text">Status message</div>
+        </div>
+    </div>
+
+    <!-- Firebase and Admin JavaScript -->
+    <script type="module" src="js/firebase.js"></script>
+    <script type="module" src="js/admin.js"></script>
+</body>
+</html>

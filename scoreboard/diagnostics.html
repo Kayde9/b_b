@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scoreboard Diagnostics</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-white p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-3xl font-bold mb-6 text-orange-500">🏀 Scoreboard Diagnostics</h1>
+        
+        <div id="diagnostics" class="space-y-4">
+            <div class="bg-gray-800 p-4 rounded">
+                <h2 class="text-xl font-semibold mb-2">System Status</h2>
+                <div id="status-checks"></div>
+            </div>
+            
+            <div class="bg-gray-800 p-4 rounded">
+                <h2 class="text-xl font-semibold mb-2">Firebase Connection</h2>
+                <div id="firebase-status"></div>
+            </div>
+            
+            <div class="bg-gray-800 p-4 rounded">
+                <h2 class="text-xl font-semibold mb-2">Match Data</h2>
+                <pre id="match-data" class="text-xs bg-gray-900 p-3 rounded overflow-auto max-h-64"></pre>
+            </div>
+            
+            <div class="bg-gray-800 p-4 rounded">
+                <h2 class="text-xl font-semibold mb-2">Console Logs</h2>
+                <div id="console-logs" class="text-xs bg-gray-900 p-3 rounded max-h-64 overflow-auto space-y-1"></div>
+            </div>
+            
+            <div class="flex space-x-4">
+                <button onclick="testFirebase()" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded">Test Firebase</button>
+                <button onclick="testScoreboard()" class="bg-green-600 hover:bg-green-700 px-4 py-2 rounded">Test Scoreboard</button>
+                <button onclick="window.location.href='/index.html'" class="bg-orange-600 hover:bg-orange-700 px-4 py-2 rounded">Open Scoreboard</button>
+                <button onclick="window.location.href='/admin.html'" class="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded">Open Admin</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        const statusChecks = document.getElementById('status-checks');
+        const firebaseStatus = document.getElementById('firebase-status');
+        const matchData = document.getElementById('match-data');
+        const consoleLogs = document.getElementById('console-logs');
+        
+        // Intercept console logs
+        const originalLog = console.log;
+        const originalError = console.error;
+        const originalWarn = console.warn;
+        
+        function addLog(type, ...args) {
+            const logEntry = document.createElement('div');
+            logEntry.className = type === 'error' ? 'text-red-400' : type === 'warn' ? 'text-yellow-400' : 'text-green-400';
+            logEntry.textContent = `[${type.toUpperCase()}] ${args.join(' ')}`;
+            consoleLogs.appendChild(logEntry);
+            consoleLogs.scrollTop = consoleLogs.scrollHeight;
+        }
+        
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            addLog('log', ...args);
+        };
+        
+        console.error = function(...args) {
+            originalError.apply(console, args);
+            addLog('error', ...args);
+        };
+        
+        console.warn = function(...args) {
+            originalWarn.apply(console, args);
+            addLog('warn', ...args);
+        };
+        
+        // Run diagnostics
+        async function runDiagnostics() {
+            console.log('Starting diagnostics...');
+            
+            // Check basic connectivity
+            statusChecks.innerHTML = '<div class="text-yellow-400">Checking system...</div>';
+            
+            const checks = [];
+            
+            // Check if running locally
+            checks.push({
+                name: 'Server',
+                status: window.location.protocol === 'http:' ? 'PASS' : 'WARN',
+                message: `Running on ${window.location.protocol}//$ {window.location.host}`
+            });
+            
+            // Check Firebase script
+            try {
+                await import('https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js');
+                checks.push({
+                    name: 'Firebase SDK',
+                    status: 'PASS',
+                    message: 'Firebase SDK loaded successfully'
+                });
+            } catch (error) {
+                checks.push({
+                    name: 'Firebase SDK',
+                    status: 'FAIL',
+                    message: `Failed to load: ${error.message}`
+                });
+            }
+            
+            // Check Firebase service
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            if (window.FirebaseService) {
+                checks.push({
+                    name: 'FirebaseService',
+                    status: 'PASS',
+                    message: 'FirebaseService is available'
+                });
+            } else {
+                checks.push({
+                    name: 'FirebaseService',
+                    status: 'FAIL',
+                    message: 'FirebaseService not found'
+                });
+            }
+            
+            // Display checks
+            statusChecks.innerHTML = checks.map(check => `
+                <div class="flex items-center justify-between py-2 border-b border-gray-700">
+                    <span>${check.name}</span>
+                    <span class="${check.status === 'PASS' ? 'text-green-400' : check.status === 'WARN' ? 'text-yellow-400' : 'text-red-400'}">
+                        ${check.status} - ${check.message}
+                    </span>
+                </div>
+            `).join('');
+        }
+        
+        // Test Firebase connection
+        window.testFirebase = async function() {
+            console.log('Testing Firebase connection...');
+            firebaseStatus.innerHTML = '<div class="text-yellow-400">Testing...</div>';
+            
+            try {
+                if (!window.FirebaseService) {
+                    throw new Error('FirebaseService not available. Make sure firebase.js is loaded.');
+                }
+                
+                console.log('Getting current match data...');
+                const data = await window.FirebaseService.getCurrentMatch();
+                console.log('Match data received:', data);
+                
+                firebaseStatus.innerHTML = `
+                    <div class="text-green-400">✓ Firebase connected successfully</div>
+                    <div class="text-sm text-gray-400 mt-2">Database: internmimsbasketball</div>
+                `;
+                
+                matchData.textContent = JSON.stringify(data, null, 2);
+            } catch (error) {
+                console.error('Firebase test failed:', error);
+                firebaseStatus.innerHTML = `
+                    <div class="text-red-400">✗ Firebase connection failed</div>
+                    <div class="text-sm text-gray-400 mt-2">${error.message}</div>
+                `;
+                matchData.textContent = `Error: ${error.message}`;
+            }
+        };
+        
+        // Test scoreboard
+        window.testScoreboard = function() {
+            console.log('Opening scoreboard in new tab...');
+            window.open('/index.html', '_blank');
+        };
+        
+        // Initialize
+        console.log('Diagnostics page loaded');
+        runDiagnostics();
+        
+        // Auto-test Firebase after page loads
+        setTimeout(() => {
+            if (window.FirebaseService) {
+                testFirebase();
+            } else {
+                console.warn('FirebaseService not ready after 2 seconds');
+            }
+        }, 2000);
+    </script>
+    
+    <!-- Load Firebase scripts -->
+    <script type="module" src="js/firebase.js"></script>
+</body>
+</html>
