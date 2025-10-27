@@ -5,6 +5,11 @@
   padding: 2rem;
   backdrop-filter: blur(10px);
   box-shadow: 0 0 30px rgba(255, 107, 53, 0.2);
+  /* Prevent flickering from GPU acceleration issues */
+  will-change: auto;
+  backface-visibility: hidden;
+  transform: translateZ(0);
+  -webkit-font-smoothing: antialiased;
 }
 
 .live-scoreboard-loading,
@@ -96,6 +101,10 @@
   color: white;
   font-family: 'Orbitron', monospace;
   text-shadow: 0 0 20px rgba(255, 107, 53, 0.5);
+  /* Prevent width changes causing layout shifts */
+  min-width: 120px;
+  display: inline-block;
+  text-align: center;
 }
 
 .scoreboard-center {
@@ -113,6 +122,13 @@
   font-weight: 700;
   color: #FF6B35;
   font-family: 'Orbitron', monospace;
+}
+
+.game-timer span {
+  /* Prevent timer width changes causing layout shifts */
+  min-width: 100px;
+  display: inline-block;
+  text-align: center;
 }
 
 .vs-text {
@@ -162,6 +178,9 @@
   padding: 0.75rem 1rem;
   border-radius: 0.5rem;
   transition: all 0.3s ease;
+  /* Prevent flickering */
+  will-change: auto;
+  backface-visibility: hidden;
 }
 
 .player-card:hover {

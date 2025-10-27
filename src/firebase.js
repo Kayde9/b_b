@@ -1,4 +1,7 @@
 // Centralized Firebase configuration and initialization
+import { initializeApp, getApps } from 'firebase/app';
+import { getDatabase, ref, onValue, update, set, get } from 'firebase/database';
+
 let firebaseApp = null;
 let firebaseDatabase = null;
 let firebaseAuth = null;
@@ -19,29 +22,43 @@ const firebaseConfig = {
 // Initialize Firebase only once
 export const initializeFirebase = async () => {
   if (firebaseInitialized) {
+    console.log('Firebase already initialized, returning existing instance');
     return { app: firebaseApp, database: firebaseDatabase };
   }
 
   try {
-    const { initializeApp, getApps } = await import('https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js');
-    const { getDatabase } = await import('https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js');
-    const { getAuth } = await import('https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js');
+    console.log('Starting Firebase initialization...');
     
     // Check if app already exists
     const existingApps = getApps();
     if (existingApps.length > 0) {
+      console.log('Using existing Firebase app');
       firebaseApp = existingApps[0];
     } else {
+      console.log('Creating new Firebase app');
       firebaseApp = initializeApp(firebaseConfig);
     }
     
+    console.log('Initializing database...');
     firebaseDatabase = getDatabase(firebaseApp);
-    firebaseAuth = getAuth(firebaseApp);
+    
+    console.log('Initializing auth...');
+    try {
+      const { getAuth } = await import('firebase/auth');
+      firebaseAuth = getAuth(firebaseApp);
+      console.log('Auth initialized successfully');
+    } catch (authError) {
+      console.warn('Auth initialization skipped:', authError.message);
+      firebaseAuth = null;
+    }
+    
     firebaseInitialized = true;
+    console.log('Firebase initialization complete!');
     
     return { app: firebaseApp, database: firebaseDatabase, auth: firebaseAuth };
   } catch (error) {
     console.error('Firebase initialization error:', error);
+    console.error('Error details:', error.message, error.code);
     throw error;
   }
 };
@@ -49,10 +66,9 @@ export const initializeFirebase = async () => {
 // Get Firebase database reference functions
 export const getFirebaseDatabase = async () => {
   if (!firebaseInitialized) {
+    console.log('Firebase not initialized, initializing now...');
     await initializeFirebase();
   }
-  
-  const { ref, onValue, update, set, get } = await import('https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js');
   
   return {
     database: firebaseDatabase,
@@ -71,7 +87,7 @@ export const signInAdmin = async (email, password) => {
   }
   
   try {
-    const { signInWithEmailAndPassword } = await import('https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js');
+    const { signInWithEmailAndPassword } = await import('firebase/auth');
     const userCredential = await signInWithEmailAndPassword(firebaseAuth, email, password);
     authInitialized = true;
     return userCredential.user;
@@ -92,7 +108,7 @@ export const signInAnonymously = async () => {
   }
   
   try {
-    const { signInAnonymously: firebaseSignInAnonymously } = await import('https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js');
+    const { signInAnonymously: firebaseSignInAnonymously } = await import('firebase/auth');
     const userCredential = await firebaseSignInAnonymously(firebaseAuth);
     authInitialized = true;
     return userCredential.user;
@@ -109,7 +125,7 @@ export const signOut = async () => {
   }
   
   try {
-    const { signOut: firebaseSignOut } = await import('https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js');
+    const { signOut: firebaseSignOut } = await import('firebase/auth');
     await firebaseSignOut(firebaseAuth);
     authInitialized = false;
   } catch (error) {

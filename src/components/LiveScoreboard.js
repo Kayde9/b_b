@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Clock, Users } from 'lucide-react';
 import { getFirebaseDatabase } from '../firebase';
@@ -8,6 +8,9 @@ const LiveScoreboard = () => {
   const [matchData, setMatchData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  
+  // Add ref to track previous data and prevent unnecessary re-renders
+  const prevMatchDataRef = useRef(null);
 
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
@@ -15,18 +18,52 @@ const LiveScoreboard = () => {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
+  // Memoize player lists to prevent unnecessary re-renders
+  const teamAPlayers = useMemo(() => {
+    if (!matchData?.players) return [];
+    return Object.entries(matchData.players).filter(([_, player]) => player.team === 'A');
+  }, [matchData?.players]);
+
+  const teamBPlayers = useMemo(() => {
+    if (!matchData?.players) return [];
+    return Object.entries(matchData.players).filter(([_, player]) => player.team === 'B');
+  }, [matchData?.players]);
+
   useEffect(() => {
     // Initialize Firebase and listen to match updates
     const initFirebase = async () => {
       try {
         const { database, ref, onValue } = await getFirebaseDatabase();
         
-        // Listen to match updates
+        // Listen to match updates with change detection
         const matchRef = ref(database, 'matches/current');
         const unsubscribe = onValue(matchRef, (snapshot) => {
           const data = snapshot.val();
           if (data) {
-            setMatchData(data);
+            // Check if data actually changed (ignore lastUpdated and timer for scoreboard)
+            const prevData = prevMatchDataRef.current;
+            const hasChanged = !prevData || 
+              data.matchStage !== prevData.matchStage ||
+              data.scoreA !== prevData.scoreA ||
+              data.scoreB !== prevData.scoreB ||
+              data.quarter !== prevData.quarter ||
+              data.isRunning !== prevData.isRunning ||
+              data.isOvertime !== prevData.isOvertime ||
+              data.teamA !== prevData.teamA ||
+              data.teamB !== prevData.teamB ||
+              JSON.stringify(data.players) !== JSON.stringify(prevData.players) ||
+              JSON.stringify(data.quarterScores) !== JSON.stringify(prevData.quarterScores);
+            
+            // Only update if something meaningful changed
+            if (hasChanged || !prevData) {
+              prevMatchDataRef.current = data;
+              setMatchData(data);
+            } else if (data.timerSeconds !== prevData.timerSeconds) {
+              // Update timer without full re-render
+              prevMatchDataRef.current = { ...prevData, timerSeconds: data.timerSeconds };
+              setMatchData(prev => ({ ...prev, timerSeconds: data.timerSeconds }));
+            }
+            
             setLoading(false);
           } else {
             setError('No active match');
@@ -73,8 +110,7 @@ const LiveScoreboard = () => {
     );
   }
 
-  const teamAPlayers = Object.entries(matchData.players || {}).filter(([_, player]) => player.team === 'A');
-  const teamBPlayers = Object.entries(matchData.players || {}).filter(([_, player]) => player.team === 'B');
+  // Player lists are now memoized above
 
   return (
     <motion.div
@@ -82,6 +118,7 @@ const LiveScoreboard = () => {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.6 }}
+      layout={false}
     >
       {/* Match Status */}
       <div className="match-status-bar">
@@ -128,13 +165,7 @@ const LiveScoreboard = () => {
           <div className="players-list">
             {teamAPlayers.length > 0 ? (
               teamAPlayers.map(([id, player]) => (
-                <div key={id} className="player-card">
-                  <span className="player-name">{player.name || 'Player'}</span>
-                  <div className="player-stats">
-                    <span className="points">{player.points || 0} pts</span>
-                    <span className="fouls">{player.fouls || 0} fouls</span>
-                  </div>
-                </div>
+                <PlayerCard key={id} player={player} />
               ))
             ) : (
               <div className="no-players">No players added yet</div>
@@ -151,13 +182,7 @@ const LiveScoreboard = () => {
           <div className="players-list">
             {teamBPlayers.length > 0 ? (
               teamBPlayers.map(([id, player]) => (
-                <div key={id} className="player-card">
-                  <span className="player-name">{player.name || 'Player'}</span>
-                  <div className="player-stats">
-                    <span className="points">{player.points || 0} pts</span>
-                    <span className="fouls">{player.fouls || 0} fouls</span>
-                  </div>
-                </div>
+                <PlayerCard key={id} player={player} />
               ))
             ) : (
               <div className="no-players">No players added yet</div>
@@ -189,5 +214,16 @@ const LiveScoreboard = () => {
     </motion.div>
   );
 };
+
+// Memoized Player Card Component to prevent unnecessary re-renders
+const PlayerCard = React.memo(({ player }) => (
+  <div className="player-card">
+    <span className="player-name">{player.name || 'Player'}</span>
+    <div className="player-stats">
+      <span className="points">{player.points || 0} pts</span>
+      <span className="fouls">{player.fouls || 0} fouls</span>
+    </div>
+  </div>
+));
 
 export default LiveScoreboard;

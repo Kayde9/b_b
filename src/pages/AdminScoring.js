@@ -111,8 +111,10 @@ const AdminScoring = () => {
 
   const initFirebase = React.useCallback(async () => {
     try {
+      console.log('Initializing Firebase...');
       const { database, ref, onValue, update } = await getFirebaseDatabase();
       
+      console.log('Firebase initialized successfully');
       setFirebase({ database, ref, onValue, update });
       
       // Listen to match updates
@@ -151,19 +153,30 @@ const AdminScoring = () => {
           }
         } else {
           // Initialize default match
-          initializeMatch(database, ref, update);
+          console.log('No match data found, initializing default match');
+          initializeMatch(database, ref, update).catch(err => {
+            console.error('Error initializing match:', err);
+          });
         }
-        // Only set loading to false on first load
+        // Always set loading to false on first load (even if no data)
         if (isFirstLoad) {
+          console.log('First load complete, setting loading to false');
           setLoading(false);
           isFirstLoad = false;
         }
+      }, (error) => {
+        console.error('Firebase listener error:', error);
+        setError('Failed to listen to match updates');
+        setLoading(false);
       });
 
-      return () => unsubscribe();
+      return () => {
+        console.log('Cleaning up Firebase listener');
+        unsubscribe();
+      };
     } catch (err) {
       console.error('Firebase initialization error:', err);
-      setError(err);
+      setError(err?.message || 'Failed to initialize Firebase');
       setLoading(false);
     }
   }, []);
@@ -211,10 +224,32 @@ const AdminScoring = () => {
   useEffect(() => {
     if (authenticated) {
       setLoading(true);
-      initFirebase();
-      loadPastMatches();
+      
+      // Set a timeout to prevent infinite loading
+      const loadingTimeout = setTimeout(() => {
+        console.warn('Loading timeout - forcing load complete');
+        setLoading(false);
+      }, 10000); // 10 second timeout
+      
+      // Initialize Firebase - only once
+      const initialize = async () => {
+        try {
+          await initFirebase();
+          await loadPastMatches();
+        } catch (err) {
+          console.error('Initialization error:', err);
+          setError('Failed to connect to database');
+          setLoading(false);
+        }
+      };
+      
+      initialize();
+      
+      // Clear timeout when component unmounts
+      return () => clearTimeout(loadingTimeout);
     }
-  }, [authenticated, initFirebase, loadPastMatches]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authenticated]);
 
   // Timer management useEffect - optimized to prevent flickering
   useEffect(() => {
@@ -281,6 +316,7 @@ const AdminScoring = () => {
 
   // Error boundary check - after all hooks
   if (error) {
+    console.error('Admin Panel Error:', error);
     return (
       <div style={{ 
         minHeight: '100vh', 
@@ -294,7 +330,18 @@ const AdminScoring = () => {
       }}>
         <div>
           <h1 style={{ color: '#ef4444', marginBottom: '1rem' }}>Error Loading Admin Panel</h1>
-          <p style={{ marginBottom: '1rem' }}>{error.message}</p>
+          <p style={{ marginBottom: '1rem' }}>{error?.message || String(error)}</p>
+          <pre style={{ 
+            background: '#2a2a2a', 
+            padding: '1rem', 
+            borderRadius: '0.5rem', 
+            textAlign: 'left',
+            fontSize: '0.875rem',
+            maxWidth: '600px',
+            overflow: 'auto'
+          }}>
+            {error?.stack || 'No stack trace available'}
+          </pre>
           <button 
             onClick={() => window.location.reload()} 
             style={{
