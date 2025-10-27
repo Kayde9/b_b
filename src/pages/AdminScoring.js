@@ -1449,9 +1449,10 @@ const AdminScoring = () => {
         <div className="admin-header">
           <h1><Trophy size={32} /> Match Setup</h1>
           <div className="header-actions">
-            <button onClick={() => {
+            <button onClick={async () => {
               if (window.confirm('Are you sure you want to go back to menu? Unsaved changes will be lost.')) {
-                updateMatchInfo('matchStage', 'menu');
+                await updateMatchInfo('matchStage', 'menu');
+                setMatchStage('menu');
               }
             }} className="home-btn" style={{
               marginRight: '10px',
@@ -1729,9 +1730,10 @@ const AdminScoring = () => {
         <div className="admin-header">
           <h1><Trophy size={32} /> Select Playing 5</h1>
           <div className="header-actions">
-            <button onClick={() => {
+            <button onClick={async () => {
               if (window.confirm('Are you sure you want to go back to menu?')) {
-                updateMatchInfo('matchStage', 'menu');
+                await updateMatchInfo('matchStage', 'menu');
+                setMatchStage('menu');
               }
             }} className="home-btn" style={{
               marginRight: '10px',
@@ -1852,9 +1854,10 @@ const AdminScoring = () => {
           </div>
         </div>
         <div className="header-actions">
-          <button onClick={() => {
+          <button onClick={async () => {
             if (window.confirm('Are you sure you want to go back to menu? Match will continue in background.')) {
-              updateMatchInfo('matchStage', 'menu');
+              await updateMatchInfo('matchStage', 'menu');
+              setMatchStage('menu');
             }
           }} className="home-btn" style={{
             marginRight: '10px',
