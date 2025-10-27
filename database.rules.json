@@ -3,8 +3,7 @@
     "matches": {
       "current": {
         ".read": true,
-        ".write": "auth != null && root.child('admins').child(auth.uid).val() === true",
-        ".validate": "newData.hasChildren(['teamA', 'teamB', 'scoreA', 'scoreB', 'timer', 'quarter'])",
+        ".write": true,
         "teamA": {
           ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 100"
         },
@@ -31,9 +30,8 @@
         },
         "players": {
           ".read": true,
-          ".write": "auth != null && root.child('admins').child(auth.uid).val() === true",
+          ".write": true,
           "$playerId": {
-            ".validate": "newData.hasChildren(['name', 'team', 'points', 'fouls'])",
             "name": {
               ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 100"
             },
@@ -54,9 +52,8 @@
       },
       "scheduled": {
         ".read": true,
-        ".write": "auth != null && root.child('admins').child(auth.uid).val() === true",
+        ".write": true,
         "$matchId": {
-          ".validate": "newData.hasChildren(['teamA', 'teamB', 'date', 'time', 'court', 'status'])",
           "teamA": {
             ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 100"
           },
@@ -79,7 +76,7 @@
       },
       "past": {
         ".read": true,
-        ".write": "auth != null && root.child('admins').child(auth.uid).val() === true"
+        ".write": true
       }
     },
     "admins": {

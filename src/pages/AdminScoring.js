@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Trash2, Save, Lock, LogOut, Users, Trophy, Play, Pause, RotateCcw, Clock, RefreshCw, AlertTriangle, Upload, FileSpreadsheet } from 'lucide-react';
+import { Plus, Trash2, Save, Lock, LogOut, Users, Trophy, Play, Pause, RotateCcw, Clock, RefreshCw, AlertTriangle, Upload, FileSpreadsheet, Home } from 'lucide-react';
 import { getFirebaseDatabase } from '../firebase';
+import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import './AdminScoring.css';
 
 const AdminScoring = () => {
   // All hooks must be declared at the top, before any conditional returns
+  const navigate = useNavigate();
   const [error, setError] = useState(null);
   const [authenticated, setAuthenticated] = useState(false);
   const [password, setPassword] = useState('');
@@ -1337,6 +1339,21 @@ const AdminScoring = () => {
         <div className="admin-header">
           <h1><Trophy size={32} /> Admin Scoring Panel</h1>
           <div className="header-actions">
+            <button onClick={() => navigate('/')} className="home-btn" style={{
+              marginRight: '10px',
+              padding: '0.75rem 1.5rem',
+              background: '#FF6B35',
+              color: 'white',
+              border: 'none',
+              borderRadius: '0.5rem',
+              cursor: 'pointer',
+              fontWeight: 'bold',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem'
+            }}>
+              <Home size={20} /> Home
+            </button>
             <button onClick={handleLogout} className="logout-btn">
               <LogOut size={20} /> Logout
             </button>
@@ -1432,6 +1449,40 @@ const AdminScoring = () => {
         <div className="admin-header">
           <h1><Trophy size={32} /> Match Setup</h1>
           <div className="header-actions">
+            <button onClick={() => {
+              if (window.confirm('Are you sure you want to go back to menu? Unsaved changes will be lost.')) {
+                updateMatchInfo('matchStage', 'menu');
+              }
+            }} className="home-btn" style={{
+              marginRight: '10px',
+              padding: '0.75rem 1.5rem',
+              background: '#FF6B35',
+              color: 'white',
+              border: 'none',
+              borderRadius: '0.5rem',
+              cursor: 'pointer',
+              fontWeight: 'bold',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem'
+            }}>
+              <Home size={20} /> Back to Menu
+            </button>
+            <button onClick={() => navigate('/')} className="home-btn" style={{
+              marginRight: '10px',
+              padding: '0.75rem 1.5rem',
+              background: '#4CAF50',
+              color: 'white',
+              border: 'none',
+              borderRadius: '0.5rem',
+              cursor: 'pointer',
+              fontWeight: 'bold',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem'
+            }}>
+              <Home size={20} /> Home Page
+            </button>
             <button onClick={handleLogout} className="logout-btn">
               <LogOut size={20} /> Logout
             </button>
@@ -1678,6 +1729,40 @@ const AdminScoring = () => {
         <div className="admin-header">
           <h1><Trophy size={32} /> Select Playing 5</h1>
           <div className="header-actions">
+            <button onClick={() => {
+              if (window.confirm('Are you sure you want to go back to menu?')) {
+                updateMatchInfo('matchStage', 'menu');
+              }
+            }} className="home-btn" style={{
+              marginRight: '10px',
+              padding: '0.75rem 1.5rem',
+              background: '#FF6B35',
+              color: 'white',
+              border: 'none',
+              borderRadius: '0.5rem',
+              cursor: 'pointer',
+              fontWeight: 'bold',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem'
+            }}>
+              <Home size={20} /> Back to Menu
+            </button>
+            <button onClick={() => navigate('/')} className="home-btn" style={{
+              marginRight: '10px',
+              padding: '0.75rem 1.5rem',
+              background: '#4CAF50',
+              color: 'white',
+              border: 'none',
+              borderRadius: '0.5rem',
+              cursor: 'pointer',
+              fontWeight: 'bold',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem'
+            }}>
+              <Home size={20} /> Home Page
+            </button>
             <button onClick={handleLogout} className="logout-btn">
               <LogOut size={20} /> Logout
             </button>
@@ -1767,6 +1852,40 @@ const AdminScoring = () => {
           </div>
         </div>
         <div className="header-actions">
+          <button onClick={() => {
+            if (window.confirm('Are you sure you want to go back to menu? Match will continue in background.')) {
+              updateMatchInfo('matchStage', 'menu');
+            }
+          }} className="home-btn" style={{
+            marginRight: '10px',
+            padding: '0.75rem 1.5rem',
+            background: '#FF6B35',
+            color: 'white',
+            border: 'none',
+            borderRadius: '0.5rem',
+            cursor: 'pointer',
+            fontWeight: 'bold',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem'
+          }}>
+            <Home size={20} /> Back to Menu
+          </button>
+          <button onClick={() => navigate('/')} className="home-btn" style={{
+            marginRight: '10px',
+            padding: '0.75rem 1.5rem',
+            background: '#4CAF50',
+            color: 'white',
+            border: 'none',
+            borderRadius: '0.5rem',
+            cursor: 'pointer',
+            fontWeight: 'bold',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem'
+          }}>
+            <Home size={20} /> Home Page
+          </button>
           <button onClick={endMatch} className="end-match-button">
             <Trophy size={20} />
             End Match
