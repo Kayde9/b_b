@@ -348,7 +348,8 @@
   }
 
   .vs-divider {
-    transform: rotate(90deg);
+    /* VS text should remain upright in mobile view */
+    transform: none;
   }
 
   .info-grid {

@@ -1,0 +1,51 @@
+{
+  "rules": {
+    ".read": true,
+    ".write": true,
+    
+    "activeMatchId": {
+      ".read": true,
+      ".write": true
+    },
+    
+    "matches": {
+      ".read": true,
+      ".write": true,
+      
+      "$matchId": {
+        ".read": true,
+        ".write": true,
+        
+        "players": {
+          ".read": true,
+          ".write": true,
+          
+          "$playerId": {
+            ".read": true,
+            ".write": true
+          }
+        },
+        
+        "quarterScores": {
+          ".read": true,
+          ".write": true
+        },
+        
+        "timeouts": {
+          ".read": true,
+          ".write": true
+        }
+      }
+    },
+    
+    "matches/scheduled": {
+      ".read": true,
+      ".write": true,
+      
+      "$scheduleId": {
+        ".read": true,
+        ".write": true
+      }
+    }
+  }
+}

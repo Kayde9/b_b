@@ -19,8 +19,8 @@ const AdminScoring = () => {
   const [selectedTeam, setSelectedTeam] = useState('A');
   const [newPlayer, setNewPlayer] = useState({ name: '', jersey: '', team: 'A' });
   const [notification, setNotification] = useState('');
-  const [timerSeconds, setTimerSeconds] = useState(720); // 12 minutes in seconds
-  const [quarterDuration, setQuarterDuration] = useState(12); // Duration in minutes
+  const [timerSeconds, setTimerSeconds] = useState(600); // 10 minutes in seconds
+  const [quarterDuration, setQuarterDuration] = useState(10); // Duration in minutes
   const [showTimeSettings, setShowTimeSettings] = useState(false);
   const timerIntervalRef = useRef(null);
   
@@ -48,6 +48,11 @@ const AdminScoring = () => {
   const [showPastMatchesModal, setShowPastMatchesModal] = useState(false);
   const [selectedPastMatch, setSelectedPastMatch] = useState(null);
   
+  // Delete matches modal state
+  const [showDeleteMatchesModal, setShowDeleteMatchesModal] = useState(false);
+  const [allMatches, setAllMatches] = useState({ scheduled: [], finished: [], live: [] });
+  const [selectedMatchesToDelete, setSelectedMatchesToDelete] = useState([]);
+  
   // Ref to track previous match data to prevent unnecessary re-renders
   const prevMatchDataRef = useRef(null);
   
@@ -64,11 +69,44 @@ const AdminScoring = () => {
   const [isLocked, setIsLocked] = useState(false);
   const [lockoutTime, setLockoutTime] = useState(null);
 
+  // Multi-scorer system - Court selection
+  const [selectedCourt, setSelectedCourt] = useState(null);
+  const [courtPassword, setCourtPassword] = useState('');
+  
+  // Court passwords
+  const COURT_PASSWORDS = {
+    'Court A': 'courtA123',
+    'Court B': 'courtB123',
+    'Court C': 'courtC123'
+  };
+
   // Use environment variable for admin password with fallback
   const ADMIN_PASSWORD = process.env.REACT_APP_ADMIN_PASSWORD || 'nmims2025';
 
+  // Load selected court from localStorage on mount
+  useEffect(() => {
+    const savedCourt = localStorage.getItem('selectedCourt');
+    const savedPassword = localStorage.getItem('courtPassword');
+    if (savedCourt && savedPassword && COURT_PASSWORDS[savedCourt] === savedPassword) {
+      setSelectedCourt(savedCourt);
+      setCourtPassword(savedPassword);
+      setMatchScheduleData(prev => ({ ...prev, court: savedCourt }));
+    }
+  }, []);
+
+  // Get court-specific Firebase path
+  const getCourtPath = () => {
+    const courtKey = selectedCourt ? selectedCourt.replace(' ', '_').toLowerCase() : 'court_a';
+    return `matches/${courtKey}`;
+  };
+
+  // Helper to replace 'matches/current' with court-specific path
+  const replaceMatchPath = (path) => {
+    return path.replace('matches/current', getCourtPath());
+  };
+
   const updateMatchInfo = React.useCallback(async (field, value) => {
-    if (!firebase) return;
+    if (!firebase || !selectedCourt) return;
     
     // Optimistic update - update local state immediately to prevent flickering
     if (matchData) {
@@ -77,9 +115,10 @@ const AdminScoring = () => {
       setMatchData(optimisticData);
     }
     
+    const courtPath = getCourtPath();
     const updates = {};
-    updates[`matches/current/${field}`] = value;
-    updates['matches/current/lastUpdated'] = Date.now();
+    updates[`${courtPath}/${field}`] = value;
+    updates[`${courtPath}/lastUpdated`] = Date.now();
 
     try {
       await firebase.update(firebase.ref(firebase.database), updates);
@@ -90,19 +129,20 @@ const AdminScoring = () => {
         setMatchData(matchData);
       }
     }
-  }, [firebase, matchData]);
+  }, [firebase, matchData, selectedCourt]);
 
   const stopTimer = React.useCallback(async () => {
-    if (!firebase) return;
+    if (!firebase || !selectedCourt) return;
+    const courtPath = getCourtPath();
     const updates = {};
-    updates['matches/current/isRunning'] = false;
-    updates['matches/current/lastUpdated'] = Date.now();
+    updates[`${courtPath}/isRunning`] = false;
+    updates[`${courtPath}/lastUpdated`] = Date.now();
     try {
       await firebase.update(firebase.ref(firebase.database), updates);
     } catch (error) {
       console.error('Error stopping timer:', error);
     }
-  }, [firebase]);
+  }, [firebase, selectedCourt]);
 
   const endTimeout = React.useCallback(async () => {
     setTimeoutActive(false);
@@ -118,70 +158,102 @@ const AdminScoring = () => {
       
       console.log('Firebase initialized successfully');
       setFirebase({ database, ref, onValue, update });
-      
-      // Listen to match updates
-      const matchRef = ref(database, 'matches/current');
-      let isFirstLoad = true;
-      const unsubscribe = onValue(matchRef, (snapshot) => {
-        const data = snapshot.val();
-        if (data) {
-          // Check if data actually changed (ignore lastUpdated timestamp)
-          const prevData = prevMatchDataRef.current;
-          const hasChanged = !prevData || 
-            data.matchStage !== prevData.matchStage ||
-            data.scoreA !== prevData.scoreA ||
-            data.scoreB !== prevData.scoreB ||
-            data.quarter !== prevData.quarter ||
-            data.isRunning !== prevData.isRunning ||
-            JSON.stringify(data.teamAPlaying) !== JSON.stringify(prevData.teamAPlaying) ||
-            JSON.stringify(data.teamBPlaying) !== JSON.stringify(prevData.teamBPlaying) ||
-            JSON.stringify(data.players) !== JSON.stringify(prevData.players);
-          
-          if (hasChanged || !prevData) {
-            prevMatchDataRef.current = data;
-            
-            // Use React 18 batching - all state updates in same function are batched automatically
-            // This prevents multiple re-renders and flickering
-            setMatchData(data);
-            setMatchStage(data.matchStage || 'menu');
-            setTeamAPlaying(data.teamAPlaying || []);
-            setTeamBPlaying(data.teamBPlaying || []);
-            
-            // Only sync timer from Firebase when timer is not running to prevent flickering
-            if (data.timerSeconds !== undefined && !data.isRunning) {
-              setTimerSeconds(data.timerSeconds);
-            }
-            setQuarterDuration(data.quarterDuration || 12);
-          }
-        } else {
-          // Initialize default match
-          console.log('No match data found, initializing default match');
-          initializeMatch(database, ref, update).catch(err => {
-            console.error('Error initializing match:', err);
-          });
-        }
-        // Always set loading to false on first load (even if no data)
-        if (isFirstLoad) {
-          console.log('First load complete, setting loading to false');
-          setLoading(false);
-          isFirstLoad = false;
-        }
-      }, (error) => {
-        console.error('Firebase listener error:', error);
-        setError('Failed to listen to match updates');
-        setLoading(false);
-      });
-
-      return () => {
-        console.log('Cleaning up Firebase listener');
-        unsubscribe();
-      };
+      setLoading(false);
     } catch (err) {
       console.error('Firebase initialization error:', err);
       setError(err?.message || 'Failed to initialize Firebase');
       setLoading(false);
     }
   }, []);
+
+  // Separate effect to listen to court-specific match data
+  useEffect(() => {
+    if (!firebase || !selectedCourt) return;
+
+    const courtPath = getCourtPath();
+    console.log('Listening to court path:', courtPath);
+    const matchRef = firebase.ref(firebase.database, courtPath);
+    
+    const unsubscribe = firebase.onValue(matchRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        // Check if data actually changed
+        const prevData = prevMatchDataRef.current;
+        
+        // Check if players object changed
+        const playersChanged = JSON.stringify(data.players || {}) !== JSON.stringify(prevData?.players || {});
+        
+        const hasChanged = !prevData || 
+          data.matchStage !== prevData.matchStage ||
+          data.scoreA !== prevData.scoreA ||
+          data.scoreB !== prevData.scoreB ||
+          data.quarter !== prevData.quarter ||
+          data.isRunning !== prevData.isRunning ||
+          data.quarterDuration !== prevData.quarterDuration ||
+          data.timerSeconds !== prevData.timerSeconds ||
+          JSON.stringify(data.teamAPlaying) !== JSON.stringify(prevData.teamAPlaying) ||
+          JSON.stringify(data.teamBPlaying) !== JSON.stringify(prevData.teamBPlaying) ||
+          playersChanged;
+        
+        if (hasChanged || !prevData) {
+          if (playersChanged) {
+            console.log('Players data changed, updating UI');
+          }
+          prevMatchDataRef.current = data;
+          setMatchData({...data}); // Create new object reference to force re-render
+          setMatchStage(data.matchStage || 'menu');
+          setTeamAPlaying(data.teamAPlaying || []);
+          setTeamBPlaying(data.teamBPlaying || []);
+          
+          if (data.timerSeconds !== undefined && !data.isRunning) {
+            setTimerSeconds(data.timerSeconds);
+          }
+          if (data.quarterDuration !== undefined) {
+            setQuarterDuration(data.quarterDuration);
+          }
+        }
+      } else {
+        // Initialize default match for this court
+        console.log('No match data found for', selectedCourt, ', initializing');
+        const updates = {};
+        updates[courtPath] = {
+          teamA: '',
+          teamB: '',
+          scoreA: 0,
+          scoreB: 0,
+          quarter: 1,
+          isRunning: false,
+          timerSeconds: 600,
+          quarterDuration: 10,
+          isOvertime: false,
+          teamAPlaying: [],
+          teamBPlaying: [],
+          players: {},
+          quarterScores: {
+            q1: { teamA: 0, teamB: 0 },
+            q2: { teamA: 0, teamB: 0 },
+            q3: { teamA: 0, teamB: 0 },
+            q4: { teamA: 0, teamB: 0 }
+          },
+          timeouts: {
+            teamA: { q1: 2, q2: 2, q3: 2, q4: 4 },
+            teamB: { q1: 2, q2: 2, q3: 2, q4: 4 }
+          },
+          matchStage: 'menu',
+          matchType: 'Boys',
+          court: selectedCourt,
+          roundType: 'Knockout Round',
+          lastUpdated: Date.now()
+        };
+        firebase.update(firebase.ref(firebase.database), updates);
+      }
+    });
+
+    return () => {
+      console.log('Cleaning up court listener');
+      unsubscribe();
+    };
+  }, [firebase, selectedCourt]);
 
   const loadPastMatches = React.useCallback(async () => {
     try {
@@ -262,6 +334,46 @@ const AdminScoring = () => {
           const newTime = Math.max(0, prev - 1);
           if (newTime === 0) {
             stopTimer();
+            // Auto-advance to next quarter when timer reaches 0
+            setTimeout(async () => {
+              if (matchData && firebase && selectedCourt) {
+                const currentQuarter = matchData.quarter;
+                const courtPath = getCourtPath();
+                const updates = {};
+                
+                if (matchData.isOvertime) {
+                  // In overtime, just stop and let admin decide
+                  showNotification('Overtime period ended!');
+                } else if (currentQuarter < 4) {
+                  // Save current quarter scores before advancing
+                  const currentQ = `q${currentQuarter}`;
+                  updates[`${courtPath}/quarterScores/${currentQ}/teamA`] = matchData.scoreA || 0;
+                  updates[`${courtPath}/quarterScores/${currentQ}/teamB`] = matchData.scoreB || 0;
+                  
+                  // Auto-advance to next quarter (Q1 -> Q2 -> Q3 -> Q4)
+                  const nextQuarter = currentQuarter + 1;
+                  const duration = (matchData?.quarterDuration || quarterDuration) * 60;
+                  updates[`${courtPath}/quarter`] = nextQuarter;
+                  updates[`${courtPath}/timerSeconds`] = duration;
+                  updates[`${courtPath}/isRunning`] = false;
+                  updates[`${courtPath}/lastUpdated`] = Date.now();
+                  
+                  try {
+                    await firebase.update(firebase.ref(firebase.database), updates);
+                    showNotification(`Quarter ${nextQuarter} started automatically!`);
+                  } catch (error) {
+                    console.error('Error advancing quarter:', error);
+                  }
+                } else if (currentQuarter === 4) {
+                  // Q4 ended - check for tie
+                  if (matchData.scoreA === matchData.scoreB) {
+                    showNotification('Quarter 4 ended! Game is tied. Please start overtime.');
+                  } else {
+                    showNotification('Quarter 4 ended! Match complete.');
+                  }
+                }
+              }
+            }, 100); // Small delay to ensure stopTimer completes
           }
           // Update Firebase less frequently to reduce network traffic and prevent conflicts
           // Only update every 5 seconds or when timer hits 0
@@ -290,7 +402,24 @@ const AdminScoring = () => {
         clearInterval(timerIntervalRef.current);
       }
     };
-  }, [matchData?.isRunning, stopTimer, firebase]);
+  }, [matchData?.isRunning, matchData, stopTimer, firebase, selectedCourt, quarterDuration]);
+
+  // Prevent accidental navigation when match is active
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (matchStage === 'match' || matchStage === 'selectPlaying5') {
+        e.preventDefault();
+        e.returnValue = 'You have an active match. Are you sure you want to leave?';
+        return e.returnValue;
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [matchStage]);
 
   // Timeout timer management
   useEffect(() => {
@@ -369,8 +498,8 @@ const AdminScoring = () => {
       teamB: 'NMIMS Hyderabad',
       scoreA: 0,
       scoreB: 0,
-      timerSeconds: 720,
-      quarterDuration: 12,
+      timerSeconds: 600,
+      quarterDuration: 10,
       isRunning: false,
       quarter: 1,
       isOvertime: false,
@@ -532,7 +661,7 @@ const AdminScoring = () => {
       const updates = {};
       updates['matches/current/matchStage'] = 'menu';
       updates['matches/current/isRunning'] = false;
-      updates['matches/current/timerSeconds'] = 720;
+      updates['matches/current/timerSeconds'] = 600;
       updates['matches/current/quarter'] = 1;
       updates['matches/current/scoreA'] = 0;
       updates['matches/current/scoreB'] = 0;
@@ -690,14 +819,28 @@ const AdminScoring = () => {
 
   const updateQuarterDuration = async (minutes) => {
     const seconds = minutes * 60;
+    
+    // Immediately update local state for instant UI feedback
     setQuarterDuration(minutes);
     setTimerSeconds(seconds);
     
+    // Update matchData optimistically to prevent flickering
+    if (matchData) {
+      const optimisticData = { 
+        ...matchData, 
+        quarterDuration: minutes,
+        timerSeconds: seconds 
+      };
+      prevMatchDataRef.current = optimisticData;
+      setMatchData(optimisticData);
+    }
+    
+    const courtPath = getCourtPath();
     const updates = {};
-    updates['matches/current/quarterDuration'] = minutes;
-    updates['matches/current/timerSeconds'] = seconds;
-    updates['matches/current/isRunning'] = false;
-    updates['matches/current/lastUpdated'] = Date.now();
+    updates[`${courtPath}/quarterDuration`] = minutes;
+    updates[`${courtPath}/timerSeconds`] = seconds;
+    updates[`${courtPath}/isRunning`] = false;
+    updates[`${courtPath}/lastUpdated`] = Date.now();
     
     try {
       await firebase.update(firebase.ref(firebase.database), updates);
@@ -705,6 +848,11 @@ const AdminScoring = () => {
     } catch (error) {
       console.error('Error updating quarter duration:', error);
       showNotification('Failed to update quarter duration');
+      // Revert on error
+      if (matchData) {
+        setQuarterDuration(matchData.quarterDuration || 10);
+        setTimerSeconds(matchData.timerSeconds || 600);
+      }
     }
   };
 
@@ -724,30 +872,43 @@ const AdminScoring = () => {
     
     // Save current quarter scores before changing
     const currentQ = isOT ? `ot${matchData.quarter - 4}` : `q${matchData.quarter}`;
+    const courtPath = getCourtPath();
     const updates = {};
     
     if (!isOT && matchData.quarter <= 4) {
-      updates[`matches/current/quarterScores/${currentQ}/teamA`] = matchData.scoreA || 0;
-      updates[`matches/current/quarterScores/${currentQ}/teamB`] = matchData.scoreB || 0;
+      updates[`${courtPath}/quarterScores/${currentQ}/teamA`] = matchData.scoreA || 0;
+      updates[`${courtPath}/quarterScores/${currentQ}/teamB`] = matchData.scoreB || 0;
     } else if (isOT || matchData.quarter > 4) {
       // Save overtime scores
       if (!matchData.quarterScores[currentQ]) {
-        updates[`matches/current/quarterScores/${currentQ}`] = {};
+        updates[`${courtPath}/quarterScores/${currentQ}`] = {};
       }
-      updates[`matches/current/quarterScores/${currentQ}/teamA`] = matchData.scoreA || 0;
-      updates[`matches/current/quarterScores/${currentQ}/teamB`] = matchData.scoreB || 0;
+      updates[`${courtPath}/quarterScores/${currentQ}/teamA`] = matchData.scoreA || 0;
+      updates[`${courtPath}/quarterScores/${currentQ}/teamB`] = matchData.scoreB || 0;
     }
     
     const duration = (matchData?.quarterDuration || quarterDuration) * 60;
-    updates['matches/current/quarter'] = newQuarter;
-    updates['matches/current/timerSeconds'] = duration;
-    updates['matches/current/isRunning'] = false;
-    updates['matches/current/isOvertime'] = isOT;
-    updates['matches/current/lastUpdated'] = Date.now();
+    updates[`${courtPath}/quarter`] = newQuarter;
+    updates[`${courtPath}/timerSeconds`] = duration;
+    updates[`${courtPath}/isRunning`] = false;
+    updates[`${courtPath}/isOvertime`] = isOT;
+    updates[`${courtPath}/lastUpdated`] = Date.now();
     
+    // Optimistically update local state immediately
+    const optimisticData = {
+      ...matchData,
+      quarter: newQuarter,
+      timerSeconds: duration,
+      isRunning: false,
+      isOvertime: isOT,
+      lastUpdated: Date.now()
+    };
+    prevMatchDataRef.current = optimisticData;
+    setMatchData(optimisticData);
+    setTimerSeconds(duration);
+
     try {
       await firebase.update(firebase.ref(firebase.database), updates);
-      setTimerSeconds(duration);
       if (isOT) {
         showNotification(`Overtime ${newQuarter - 4} started!`);
       } else {
@@ -756,6 +917,12 @@ const AdminScoring = () => {
     } catch (error) {
       console.error('Error changing quarter:', error);
       showNotification('Failed to change quarter');
+      // Rollback on error
+      if (matchData) {
+        prevMatchDataRef.current = matchData;
+        setMatchData(matchData);
+        setTimerSeconds(matchData.timerSeconds || 600);
+      }
     }
   };
 
@@ -766,23 +933,44 @@ const AdminScoring = () => {
     }
     
     // Initialize overtime quarter - 3 minutes
+    const courtPath = getCourtPath();
     const updates = {};
     const duration = 3 * 60; // 3 minutes for overtime
-    updates['matches/current/quarter'] = 5; // OT1
-    updates['matches/current/isOvertime'] = true;
-    updates['matches/current/timerSeconds'] = duration;
-    updates['matches/current/quarterDuration'] = 3;
-    updates['matches/current/isRunning'] = false;
-    updates['matches/current/lastUpdated'] = Date.now();
+    updates[`${courtPath}/quarter`] = 5; // OT1
+    updates[`${courtPath}/isOvertime`] = true;
+    updates[`${courtPath}/timerSeconds`] = duration;
+    updates[`${courtPath}/quarterDuration`] = 3;
+    updates[`${courtPath}/isRunning`] = false;
+    updates[`${courtPath}/lastUpdated`] = Date.now();
+    
+    // Optimistically update local state
+    const optimisticData = {
+      ...matchData,
+      quarter: 5,
+      isOvertime: true,
+      timerSeconds: duration,
+      quarterDuration: 3,
+      isRunning: false,
+      lastUpdated: Date.now()
+    };
+    prevMatchDataRef.current = optimisticData;
+    setMatchData(optimisticData);
+    setTimerSeconds(duration);
+    setQuarterDuration(3);
     
     try {
       await firebase.update(firebase.ref(firebase.database), updates);
-      setTimerSeconds(duration);
-      setQuarterDuration(3);
       showNotification('⚠️ OVERTIME! Game is tied. Starting 3-minute overtime.');
     } catch (error) {
       console.error('Error starting overtime:', error);
       showNotification('Failed to start overtime');
+      // Rollback on error
+      if (matchData) {
+        prevMatchDataRef.current = matchData;
+        setMatchData(matchData);
+        setTimerSeconds(matchData.timerSeconds || 600);
+        setQuarterDuration(matchData.quarterDuration || 10);
+      }
     }
   };
 
@@ -1062,39 +1250,78 @@ const AdminScoring = () => {
       const jsonData = XLSX.utils.sheet_to_json(worksheet);
 
       // Expected format: [{ Name: "Player Name", Jersey: "12", Team: "A" }, ...]
+      const courtPath = getCourtPath();
       const updates = {};
+      const newPlayers = {};
       let addedCount = 0;
 
-      jsonData.forEach((row) => {
+      jsonData.forEach((row, index) => {
         const name = row.Name || row.name || row.PlayerName || row['Player Name'];
         const jersey = String(row.Jersey || row.jersey || row.Number || row.number || '');
         const team = String(row.Team || row.team || 'A').toUpperCase();
 
         if (name && jersey && (team === 'A' || team === 'B')) {
-          const playerId = `player_${Date.now()}_${addedCount}`;
-          updates[`matches/current/players/${playerId}`] = {
+          // Use timestamp + index to ensure unique IDs
+          const playerId = `player_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 9)}`;
+          const playerData = {
             name: String(name).trim(),
             jersey: jersey.trim(),
             team: team,
             points: 0,
             fouls: 0
           };
+          updates[`${courtPath}/players/${playerId}`] = playerData;
+          newPlayers[playerId] = playerData;
           addedCount++;
         }
       });
 
       if (addedCount === 0) {
         showNotification('No valid players found in Excel file');
+        event.target.value = '';
         return;
       }
 
-      updates['matches/current/lastUpdated'] = Date.now();
+      // Preserve current matchStage when updating
+      if (matchData?.matchStage) {
+        updates[`${courtPath}/matchStage`] = matchData.matchStage;
+      }
+      
+      // Force update timestamp to trigger listener
+      updates[`${courtPath}/lastUpdated`] = Date.now() + 1; // Add 1 to force change
+      
       await firebase.update(firebase.ref(firebase.database), updates);
+      
+      // Optimistically update local state immediately
+      if (matchData) {
+        const updatedPlayers = { ...(matchData.players || {}), ...newPlayers };
+        const optimisticData = { 
+          ...matchData, 
+          players: updatedPlayers,
+          lastUpdated: Date.now()
+        };
+        prevMatchDataRef.current = optimisticData;
+        setMatchData(optimisticData);
+        console.log('Optimistically updated players:', Object.keys(newPlayers).length);
+      }
+      
       showNotification(`Successfully imported ${addedCount} players!`);
-      event.target.value = ''; // Reset file input
+      
+      // Reset file input
+      event.target.value = '';
+      
+      // Force a re-render after a small delay to ensure Firebase sync
+      setTimeout(() => {
+        console.log('Forcing player list refresh...');
+        if (matchData) {
+          setMatchData({ ...matchData, _refresh: Date.now() });
+        }
+      }, 500);
+      
     } catch (error) {
       console.error('Error uploading Excel:', error);
       showNotification('Failed to import Excel file. Check format.');
+      event.target.value = '';
     }
   };
 
@@ -1247,16 +1474,203 @@ const AdminScoring = () => {
   const deletePlayer = async (playerId, playerName) => {
     if (!window.confirm(`Delete player ${playerName}?`)) return;
 
+    const courtPath = getCourtPath();
     const updates = {};
-    updates[`matches/current/players/${playerId}`] = null;
-    updates['matches/current/lastUpdated'] = Date.now();
+    updates[`${courtPath}/players/${playerId}`] = null;
+    updates[`${courtPath}/lastUpdated`] = Date.now();
 
     try {
       await firebase.update(firebase.ref(firebase.database), updates);
+      
+      // Optimistically update local state
+      if (matchData && matchData.players) {
+        const updatedPlayers = { ...matchData.players };
+        delete updatedPlayers[playerId];
+        const optimisticData = {
+          ...matchData,
+          players: updatedPlayers,
+          lastUpdated: Date.now()
+        };
+        prevMatchDataRef.current = optimisticData;
+        setMatchData(optimisticData);
+      }
+      
       showNotification(`Player ${playerName} removed!`);
     } catch (error) {
       console.error('Error deleting player:', error);
       showNotification('Failed to delete player');
+    }
+  };
+
+  // Delete all players from a team
+  const deleteAllTeamPlayers = async (team) => {
+    const teamName = team === 'A' ? (matchData?.teamA || 'Team A') : (matchData?.teamB || 'Team B');
+    if (!window.confirm(`Delete ALL players from ${teamName}? This cannot be undone!`)) return;
+
+    const courtPath = getCourtPath();
+    const updates = {};
+    const teamPlayers = Object.entries(matchData?.players || {}).filter(([_, p]) => p.team === team);
+    
+    teamPlayers.forEach(([id, _]) => {
+      updates[`${courtPath}/players/${id}`] = null;
+    });
+    updates[`${courtPath}/lastUpdated`] = Date.now();
+
+    try {
+      await firebase.update(firebase.ref(firebase.database), updates);
+      
+      // Optimistically update local state
+      if (matchData && matchData.players) {
+        const updatedPlayers = { ...matchData.players };
+        teamPlayers.forEach(([id, _]) => delete updatedPlayers[id]);
+        const optimisticData = {
+          ...matchData,
+          players: updatedPlayers,
+          lastUpdated: Date.now()
+        };
+        prevMatchDataRef.current = optimisticData;
+        setMatchData(optimisticData);
+      }
+      
+      showNotification(`All players deleted from ${teamName}`);
+    } catch (error) {
+      console.error('Error deleting players:', error);
+      showNotification('Failed to delete players');
+    }
+  };
+
+  // Load all matches from Firebase for deletion
+  const loadAllMatchesForDeletion = async () => {
+    try {
+      const { onValue } = firebase;
+      
+      // Load scheduled matches
+      const scheduledRef = firebase.ref(firebase.database, 'matches/scheduled');
+      onValue(scheduledRef, (snapshot) => {
+        const data = snapshot.val();
+        const scheduled = data ? Object.entries(data).map(([id, match]) => ({
+          id,
+          ...match,
+          type: 'scheduled',
+          path: `matches/scheduled/${id}`
+        })) : [];
+        
+        setAllMatches(prev => ({ ...prev, scheduled }));
+      }, { onlyOnce: true });
+      
+      // Load finished/past matches
+      const finishedRef = firebase.ref(firebase.database, 'matches/past');
+      onValue(finishedRef, (snapshot) => {
+        const data = snapshot.val();
+        const finished = data ? Object.entries(data).map(([id, match]) => ({
+          id,
+          ...match,
+          type: 'finished',
+          path: `matches/past/${id}`
+        })) : [];
+        
+        setAllMatches(prev => ({ ...prev, finished }));
+      }, { onlyOnce: true });
+      
+      // Load live matches from all courts
+      const courts = ['court_a', 'court_b', 'court_c'];
+      const liveMatches = [];
+      
+      for (const court of courts) {
+        const courtRef = firebase.ref(firebase.database, `matches/${court}`);
+        await new Promise((resolve) => {
+          onValue(courtRef, (snapshot) => {
+            const data = snapshot.val();
+            if (data && data.matchStage && data.matchStage !== 'menu') {
+              liveMatches.push({
+                id: court,
+                ...data,
+                type: 'live',
+                courtName: court.replace('_', ' ').toUpperCase(),
+                path: `matches/${court}`
+              });
+            }
+            resolve();
+          }, { onlyOnce: true });
+        });
+      }
+      
+      setAllMatches(prev => ({ ...prev, live: liveMatches }));
+      
+    } catch (error) {
+      console.error('Error loading matches:', error);
+      showNotification('Failed to load matches');
+    }
+  };
+
+  // Open delete matches modal
+  const openDeleteMatchesModal = async () => {
+    setShowDeleteMatchesModal(true);
+    setSelectedMatchesToDelete([]);
+    await loadAllMatchesForDeletion();
+  };
+
+  // Toggle match selection for deletion
+  const toggleMatchSelection = (matchPath) => {
+    setSelectedMatchesToDelete(prev => {
+      if (prev.includes(matchPath)) {
+        return prev.filter(p => p !== matchPath);
+      } else {
+        return [...prev, matchPath];
+      }
+    });
+  };
+
+  // Select all matches
+  const selectAllMatches = () => {
+    const allPaths = [
+      ...allMatches.scheduled.map(m => m.path),
+      ...allMatches.finished.map(m => m.path),
+      ...allMatches.live.map(m => m.path)
+    ];
+    setSelectedMatchesToDelete(allPaths);
+  };
+
+  // Deselect all matches
+  const deselectAllMatches = () => {
+    setSelectedMatchesToDelete([]);
+  };
+
+  // Delete selected matches
+  const deleteSelectedMatches = async () => {
+    if (selectedMatchesToDelete.length === 0) {
+      showNotification('Please select at least one match to delete');
+      return;
+    }
+
+    const confirmMsg = `Delete ${selectedMatchesToDelete.length} match${selectedMatchesToDelete.length > 1 ? 'es' : ''}? This CANNOT be undone!`;
+    if (!window.confirm(confirmMsg)) return;
+
+    try {
+      const updates = {};
+      selectedMatchesToDelete.forEach(path => {
+        updates[path] = null;
+      });
+      
+      await firebase.update(firebase.ref(firebase.database), updates);
+      
+      // Update local state
+      setAllMatches({
+        scheduled: allMatches.scheduled.filter(m => !selectedMatchesToDelete.includes(m.path)),
+        finished: allMatches.finished.filter(m => !selectedMatchesToDelete.includes(m.path)),
+        live: allMatches.live.filter(m => !selectedMatchesToDelete.includes(m.path))
+      });
+      
+      setPastMatches(prev => prev.filter(m => !selectedMatchesToDelete.includes(`matches/past/${m.id}`)));
+      
+      setSelectedMatchesToDelete([]);
+      showNotification(`Successfully deleted ${selectedMatchesToDelete.length} match${selectedMatchesToDelete.length > 1 ? 'es' : ''}`);
+      
+      // Reload matches to refresh the list
+      await loadAllMatchesForDeletion();
+    } catch (error) {
+      console.error('Error deleting matches:', error);
+      showNotification('Failed to delete matches');
     }
   };
 
@@ -1309,6 +1723,86 @@ const AdminScoring = () => {
               {5 - loginAttempts} attempts remaining
             </p>
           )}
+        </motion.div>
+      </div>
+    );
+  }
+
+  // Court Selection Screen
+  if (authenticated && !selectedCourt) {
+    return (
+      <div className="admin-login-container">
+        <motion.div
+          className="login-card"
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.5 }}
+          style={{ maxWidth: '500px' }}
+        >
+          <h2 style={{ marginBottom: '1rem', textAlign: 'center' }}>🏀 Select Your Court</h2>
+          <p style={{ textAlign: 'center', opacity: 0.7, marginBottom: '2rem' }}>
+            Choose which court you'll be managing
+          </p>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {Object.keys(COURT_PASSWORDS).map((court) => (
+              <motion.button
+                key={court}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => {
+                  const password = prompt(`Enter password for ${court}:`);
+                  if (password === COURT_PASSWORDS[court]) {
+                    setSelectedCourt(court);
+                    setCourtPassword(password);
+                    setMatchScheduleData(prev => ({ ...prev, court }));
+                    localStorage.setItem('selectedCourt', court);
+                    localStorage.setItem('courtPassword', password);
+                    showNotification(`Welcome to ${court}!`);
+                  } else if (password) {
+                    showNotification('Incorrect password!');
+                  }
+                }}
+                style={{
+                  padding: '1.5rem',
+                  background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
+                  border: '2px solid rgba(255,255,255,0.1)',
+                  borderRadius: '1rem',
+                  cursor: 'pointer',
+                  color: 'white',
+                  fontSize: '1.1rem',
+                  fontWeight: '700',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between'
+                }}
+              >
+                <span>{court}</span>
+                <span style={{ opacity: 0.5 }}>→</span>
+              </motion.button>
+            ))}
+          </div>
+
+          <button
+            onClick={() => {
+              setAuthenticated(false);
+              localStorage.removeItem('selectedCourt');
+              localStorage.removeItem('courtPassword');
+            }}
+            style={{
+              marginTop: '2rem',
+              width: '100%',
+              padding: '0.75rem',
+              background: 'rgba(239, 68, 68, 0.1)',
+              color: '#ef4444',
+              border: '1px solid rgba(239, 68, 68, 0.3)',
+              borderRadius: '0.5rem',
+              cursor: 'pointer',
+              fontWeight: '600'
+            }}
+          >
+            Logout
+          </button>
         </motion.div>
       </div>
     );
@@ -1370,7 +1864,7 @@ const AdminScoring = () => {
                 setIsMatchScheduled(false);
                 setMatchScheduleData({
                   matchType: 'Boys',
-                  court: 'Court A',
+                  court: selectedCourt,
                   date: '',
                   time: '',
                   roundType: 'Knockout Round'
@@ -1429,6 +1923,21 @@ const AdminScoring = () => {
               <div className="menu-icon">📊</div>
               <h3>View Score of Past Match</h3>
               <p>Review scores and statistics from previous matches ({pastMatches.length})</p>
+            </motion.button>
+
+            <motion.button
+              className="menu-option-card"
+              onClick={openDeleteMatchesModal}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              style={{
+                border: '2px solid #ef4444',
+                background: 'rgba(239, 68, 68, 0.1)'
+              }}
+            >
+              <div className="menu-icon">🗑️</div>
+              <h3 style={{ color: '#ef4444' }}>Delete Matches</h3>
+              <p>Select and delete scheduled, live, or finished matches</p>
             </motion.button>
           </div>
         </div>
@@ -1632,9 +2141,19 @@ const AdminScoring = () => {
               <div className="players-setup-grid">
             <div className="team-players-section">
               <h2><Users size={24} /> {matchData?.teamA || 'Team A'} Players ({teamAPlayers.length})</h2>
-              <button onClick={() => { setSelectedTeam('A'); setShowAddPlayer(true); }} className="add-player-btn">
-                <Plus size={20} /> Add Player
-              </button>
+              <div className="team-action-buttons">
+                <button onClick={() => { setSelectedTeam('A'); setShowAddPlayer(true); }} className="add-player-btn">
+                  <Plus size={20} /> Add Player
+                </button>
+                {teamAPlayers.length > 0 && (
+                  <button onClick={() => deleteAllTeamPlayers('A')} className="delete-all-btn" style={{
+                    background: '#ef4444',
+                    marginLeft: '10px'
+                  }}>
+                    <Trash2 size={16} /> Delete All
+                  </button>
+                )}
+              </div>
               <div className="players-list-setup">
                 {teamAPlayers.map(([id, player]) => (
                   <div key={id} className="player-setup-card">
@@ -1651,9 +2170,19 @@ const AdminScoring = () => {
 
             <div className="team-players-section">
               <h2><Users size={24} /> {matchData?.teamB || 'Team B'} Players ({teamBPlayers.length})</h2>
-              <button onClick={() => { setSelectedTeam('B'); setShowAddPlayer(true); }} className="add-player-btn">
-                <Plus size={20} /> Add Player
-              </button>
+              <div className="team-action-buttons">
+                <button onClick={() => { setSelectedTeam('B'); setShowAddPlayer(true); }} className="add-player-btn">
+                  <Plus size={20} /> Add Player
+                </button>
+                {teamBPlayers.length > 0 && (
+                  <button onClick={() => deleteAllTeamPlayers('B')} className="delete-all-btn" style={{
+                    background: '#ef4444',
+                    marginLeft: '10px'
+                  }}>
+                    <Trash2 size={16} /> Delete All
+                  </button>
+                )}
+              </div>
               <div className="players-list-setup">
                 {teamBPlayers.map(([id, player]) => (
                   <div key={id} className="player-setup-card">
@@ -1900,6 +2429,13 @@ const AdminScoring = () => {
         </div>
       </div>
 
+      {/* Match Status Bar */}
+      <div className="admin-match-status-bar">
+        <div className={`admin-status-indicator ${matchData?.isRunning ? 'live' : 'paused'}`}>
+          {matchData?.isRunning ? '● MATCH LIVE' : '⏸ MATCH PAUSED'}
+        </div>
+      </div>
+
       {/* Timer and Quarter Controls */}
       <div className="timer-quarter-section">
         <div className="timer-controls">
@@ -1963,7 +2499,7 @@ const AdminScoring = () => {
                   <button
                     key={min}
                     onClick={() => updateQuarterDuration(min)}
-                    className={`duration-btn ${(matchData?.quarterDuration || quarterDuration) === min ? 'active' : ''}`}
+                    className={`duration-btn ${quarterDuration === min ? 'active' : ''}`}
                   >
                     {min}m
                   </button>
@@ -2158,9 +2694,9 @@ const AdminScoring = () => {
               </button>
             </div>
             <div className="substitute-players-list">
-              {getBenchPlayers('A').slice(0, 3).map((player) => (
+              {getBenchPlayers('A').slice(0, 3).map((player, index) => (
                 <div key={player.id} className="substitute-player-item">
-                  P{getPlayingPlayers('A').length + getBenchPlayers('A').indexOf(player) + 1}: {player.name} (#{player.jersey})
+                  P{getPlayingPlayers('A').length + index + 1}: {player.name} (#{player.jersey})
                 </div>
               ))}
               {getBenchPlayers('A').length === 0 && (
@@ -2178,9 +2714,9 @@ const AdminScoring = () => {
               </button>
             </div>
             <div className="substitute-players-list">
-              {getBenchPlayers('B').slice(0, 3).map((player) => (
+              {getBenchPlayers('B').slice(0, 3).map((player, index) => (
                 <div key={player.id} className="substitute-player-item">
-                  P{getPlayingPlayers('B').length + getBenchPlayers('B').indexOf(player) + 1}: {player.name} (#{player.jersey})
+                  P{getPlayingPlayers('B').length + index + 1}: {player.name} (#{player.jersey})
                 </div>
               ))}
               {getBenchPlayers('B').length === 0 && (
@@ -2586,6 +3122,172 @@ const AdminScoring = () => {
                   )}
                 </div>
               )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Delete Matches Modal */}
+      <AnimatePresence>
+        {showDeleteMatchesModal && (
+          <motion.div
+            className="modal-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setShowDeleteMatchesModal(false)}
+          >
+            <motion.div
+              className="delete-matches-modal"
+              initial={{ scale: 0.8, y: 50 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.8, y: 50 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="delete-modal-header">
+                <h2>🗑️ Delete Matches</h2>
+                <button onClick={() => setShowDeleteMatchesModal(false)} className="close-btn">
+                  ✕
+                </button>
+              </div>
+
+              <div className="delete-modal-controls">
+                <p className="selection-info">
+                  {selectedMatchesToDelete.length} match{selectedMatchesToDelete.length !== 1 ? 'es' : ''} selected
+                </p>
+                <div className="select-buttons">
+                  <button onClick={selectAllMatches} className="select-all-btn">
+                    Select All
+                  </button>
+                  <button onClick={deselectAllMatches} className="deselect-all-btn">
+                    Deselect All
+                  </button>
+                </div>
+              </div>
+
+              <div className="delete-matches-content">
+                {/* Live Matches */}
+                {allMatches.live.length > 0 && (
+                  <div className="match-category">
+                    <h3 className="category-title live-title">🔴 Live Matches ({allMatches.live.length})</h3>
+                    <div className="matches-list">
+                      {allMatches.live.map((match) => (
+                        <div
+                          key={match.path}
+                          className={`match-delete-card ${selectedMatchesToDelete.includes(match.path) ? 'selected' : ''}`}
+                          onClick={() => toggleMatchSelection(match.path)}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedMatchesToDelete.includes(match.path)}
+                            onChange={() => toggleMatchSelection(match.path)}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                          <div className="match-info">
+                            <div className="match-teams-delete">
+                              <strong>{match.teamA || 'Team A'}</strong> vs <strong>{match.teamB || 'Team B'}</strong>
+                            </div>
+                            <div className="match-details-delete">
+                              <span className="court-badge">{match.courtName}</span>
+                              <span className="score-badge">Q{match.quarter} • {match.scoreA}-{match.scoreB}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Scheduled Matches */}
+                {allMatches.scheduled.length > 0 && (
+                  <div className="match-category">
+                    <h3 className="category-title scheduled-title">📅 Scheduled Matches ({allMatches.scheduled.length})</h3>
+                    <div className="matches-list">
+                      {allMatches.scheduled.map((match) => (
+                        <div
+                          key={match.path}
+                          className={`match-delete-card ${selectedMatchesToDelete.includes(match.path) ? 'selected' : ''}`}
+                          onClick={() => toggleMatchSelection(match.path)}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedMatchesToDelete.includes(match.path)}
+                            onChange={() => toggleMatchSelection(match.path)}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                          <div className="match-info">
+                            <div className="match-teams-delete">
+                              <strong>{match.teamA || 'Team A'}</strong> vs <strong>{match.teamB || 'Team B'}</strong>
+                            </div>
+                            <div className="match-details-delete">
+                              <span className="date-badge">
+                                {match.date ? new Date(match.date).toLocaleDateString() : 'No date'}
+                              </span>
+                              <span className="time-badge">{match.time || 'No time'}</span>
+                              <span className="court-badge">{match.court}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Finished Matches */}
+                {allMatches.finished.length > 0 && (
+                  <div className="match-category">
+                    <h3 className="category-title finished-title">✅ Finished Matches ({allMatches.finished.length})</h3>
+                    <div className="matches-list">
+                      {allMatches.finished.map((match) => (
+                        <div
+                          key={match.path}
+                          className={`match-delete-card ${selectedMatchesToDelete.includes(match.path) ? 'selected' : ''}`}
+                          onClick={() => toggleMatchSelection(match.path)}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedMatchesToDelete.includes(match.path)}
+                            onChange={() => toggleMatchSelection(match.path)}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                          <div className="match-info">
+                            <div className="match-teams-delete">
+                              <strong>{match.teamA || 'Team A'}</strong> vs <strong>{match.teamB || 'Team B'}</strong>
+                            </div>
+                            <div className="match-details-delete">
+                              <span className="score-badge final-score">{match.scoreA}-{match.scoreB}</span>
+                              <span className="date-badge">
+                                {match.date ? new Date(match.date).toLocaleDateString() : 'Unknown date'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* No matches found */}
+                {allMatches.live.length === 0 && allMatches.scheduled.length === 0 && allMatches.finished.length === 0 && (
+                  <div className="no-matches-to-delete">
+                    <p>📭 No matches found in the database</p>
+                    <p className="hint">All courts are clear!</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="delete-modal-actions">
+                <button onClick={() => setShowDeleteMatchesModal(false)} className="cancel-btn">
+                  Cancel
+                </button>
+                <button 
+                  onClick={deleteSelectedMatches} 
+                  className="delete-btn"
+                  disabled={selectedMatchesToDelete.length === 0}
+                >
+                  <Trash2 size={18} /> Delete Selected ({selectedMatchesToDelete.length})
+                </button>
+              </div>
             </motion.div>
           </motion.div>
         )}

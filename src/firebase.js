@@ -9,15 +9,25 @@ let firebaseInitialized = false;
 let authInitialized = false;
 
 const firebaseConfig = {
-  apiKey: "AIzaSyAWCSuJ4CFUy_mIiVJSECc8hGZok3yfWnY",
-  authDomain: "internmimsbasketball.firebaseapp.com",
-  databaseURL: "https://internmimsbasketball-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "internmimsbasketball",
-  storageBucket: "internmimsbasketball.firebasestorage.app",
-  messagingSenderId: "97822648007",
-  appId: "1:97822648007:web:cfc93e3a6fb8233c6c40e2",
-  measurementId: "G-KM2NGQ30TJ"
+  apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
+  authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN,
+  databaseURL: process.env.REACT_APP_FIREBASE_DATABASE_URL,
+  projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.REACT_APP_FIREBASE_APP_ID,
+  measurementId: process.env.REACT_APP_FIREBASE_MEASUREMENT_ID
 };
+
+// Debug: Log config to help diagnose issues (remove in production)
+console.log('🔍 Firebase Config Check:', {
+  hasApiKey: !!firebaseConfig.apiKey,
+  hasAuthDomain: !!firebaseConfig.authDomain,
+  hasDatabaseURL: !!firebaseConfig.databaseURL,
+  hasProjectId: !!firebaseConfig.projectId,
+  databaseURL: firebaseConfig.databaseURL,
+  projectId: firebaseConfig.projectId
+});
 
 // Initialize Firebase only once
 export const initializeFirebase = async () => {

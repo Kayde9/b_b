@@ -2,7 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { MapPin, Calendar, Trophy, Users } from 'lucide-react';
-import Basketball3D from '../components/Basketball3D';
+import LazyBasketball3D from '../components/LazyBasketball3D';
 import './Home.css';
 
 const Home = () => {
@@ -31,7 +31,7 @@ const Home = () => {
       <section className="hero">
         <div className="hero-background">
           <div className="basketball-3d-hero">
-            <Basketball3D />
+            <LazyBasketball3D />
           </div>
         </div>
         
@@ -174,7 +174,7 @@ const Home = () => {
           >
             <div className="visual-card glass-card">
               <div className="visual-basketball">
-                <Basketball3D />
+                <LazyBasketball3D />
               </div>
             </div>
           </motion.div>
