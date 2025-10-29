@@ -1,81 +1,83 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Clock, Users } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { getFirebaseDatabase } from '../firebase';
 import './LiveScoreboard.css';
 
 const LiveScoreboard = () => {
-  const [matchData, setMatchData] = useState(null);
+  const [liveMatches, setLiveMatches] = useState([]);
+  const [completedMatches, setCompletedMatches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [visibleCompleted, setVisibleCompleted] = useState(4);
+  const navigate = useNavigate();
   
-  // Add ref to track previous data and prevent unnecessary re-renders
   const prevMatchDataRef = useRef(null);
 
-  const formatTime = (seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  const getTeamInitials = (teamName) => {
+    if (!teamName) return '?';
+    const words = teamName.trim().split(' ');
+    if (words.length >= 2) {
+      return (words[0][0] + words[1][0]).toUpperCase();
+    }
+    return teamName.substring(0, 2).toUpperCase();
   };
 
-  // Memoize player lists to prevent unnecessary re-renders
-  const teamAPlayers = useMemo(() => {
-    if (!matchData?.players) return [];
-    return Object.entries(matchData.players).filter(([_, player]) => player.team === 'A');
-  }, [matchData?.players]);
+  const handleViewLeaderboard = () => {
+    // Navigate to leaderboard page (you can create this route later)
+    navigate('/leaderboard');
+  };
 
-  const teamBPlayers = useMemo(() => {
-    if (!matchData?.players) return [];
-    return Object.entries(matchData.players).filter(([_, player]) => player.team === 'B');
-  }, [matchData?.players]);
+  const handleSeeMore = () => {
+    setVisibleCompleted(prev => prev + 4);
+  };
 
   useEffect(() => {
-    // Initialize Firebase and listen to match updates
     const initFirebase = async () => {
       try {
         const { database, ref, onValue } = await getFirebaseDatabase();
         
-        // Listen to match updates with change detection
-        const matchRef = ref(database, 'matches/current');
-        const unsubscribe = onValue(matchRef, (snapshot) => {
+        // Listen to current live match
+        const liveMatchRef = ref(database, 'matches/current');
+        const liveUnsubscribe = onValue(liveMatchRef, (snapshot) => {
           const data = snapshot.val();
-          if (data) {
-            // Check if data actually changed (ignore lastUpdated and timer for scoreboard)
-            const prevData = prevMatchDataRef.current;
-            const hasChanged = !prevData || 
-              data.matchStage !== prevData.matchStage ||
-              data.scoreA !== prevData.scoreA ||
-              data.scoreB !== prevData.scoreB ||
-              data.quarter !== prevData.quarter ||
-              data.isRunning !== prevData.isRunning ||
-              data.isOvertime !== prevData.isOvertime ||
-              data.teamA !== prevData.teamA ||
-              data.teamB !== prevData.teamB ||
-              JSON.stringify(data.players) !== JSON.stringify(prevData.players) ||
-              JSON.stringify(data.quarterScores) !== JSON.stringify(prevData.quarterScores);
-            
-            // Only update if something meaningful changed
-            if (hasChanged || !prevData) {
-              prevMatchDataRef.current = data;
-              setMatchData(data);
-            } else if (data.timerSeconds !== prevData.timerSeconds) {
-              // Update timer without full re-render
-              prevMatchDataRef.current = { ...prevData, timerSeconds: data.timerSeconds };
-              setMatchData(prev => ({ ...prev, timerSeconds: data.timerSeconds }));
-            }
-            
-            setLoading(false);
+          if (data && data.matchStage !== 'finished') {
+            setLiveMatches([{
+              id: 'current',
+              teamA: data.teamA || 'Team A',
+              teamB: data.teamB || 'Team B',
+              scoreA: data.scoreA || 0,
+              scoreB: data.scoreB || 0,
+              isRunning: data.isRunning,
+              quarter: data.quarter
+            }]);
           } else {
-            setError('No active match');
-            setLoading(false);
+            setLiveMatches([]);
           }
-        }, (error) => {
-          console.error('Firebase error:', error);
-          setError('Failed to load match data');
           setLoading(false);
         });
 
-        return () => unsubscribe();
+        // Listen to completed matches
+        const completedRef = ref(database, 'matches/completed');
+        const completedUnsubscribe = onValue(completedRef, (snapshot) => {
+          const data = snapshot.val();
+          if (data) {
+            const matchesArray = Object.entries(data).map(([id, match]) => ({
+              id,
+              teamA: match.teamA || 'Team A',
+              teamB: match.teamB || 'Team B',
+              scoreA: match.finalScoreA || match.scoreA || 0,
+              scoreB: match.finalScoreB || match.scoreB || 0,
+              date: match.completedAt || match.date
+            })).sort((a, b) => (b.date || 0) - (a.date || 0));
+            setCompletedMatches(matchesArray);
+          }
+        });
+
+        return () => {
+          liveUnsubscribe();
+          completedUnsubscribe();
+        };
       } catch (err) {
         console.error('Firebase initialization error:', err);
         setError('Failed to connect to live data');
@@ -102,143 +104,291 @@ const LiveScoreboard = () => {
     );
   }
 
-  if (!matchData) {
-    return (
-      <div className="live-scoreboard-empty">
-        <p>No active match at the moment</p>
-      </div>
-    );
-  }
-
-  // Player lists are now memoized above
-
   return (
     <motion.div
-      className="live-scoreboard-container"
+      className="scorecard-container"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.6 }}
-      layout={false}
     >
-      {/* Match Status */}
-      <div className="match-status-bar">
-        <div className={`status-indicator ${matchData.isRunning ? 'live' : 'paused'}`}>
-          {matchData.isRunning ? '● LIVE' : '⏸ PAUSED'}
+      {/* Header Section */}
+      <div className="scorecard-header">
+        <button className="view-leaderboard-btn" onClick={handleViewLeaderboard}>
+          VIEW LEADERBOARD
+        </button>
+      </div>
+
+      {/* Live Matches Section */}
+      <div className="matches-section">
+        <h2 className="section-title">Live</h2>
+        <div className="matches-grid">
+          {liveMatches.length > 0 ? (
+            liveMatches.map((match) => (
+              <MatchPanel
+                key={match.id}
+                match={match}
+                isLive={true}
+                getTeamInitials={getTeamInitials}
+              />
+            ))
+          ) : (
+            <div className="no-matches">No live matches at the moment</div>
+          )}
         </div>
-        {matchData.timeoutActive && (
-          <div className="timeout-indicator" style={{
-            background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-            padding: '0.5rem 1rem',
-            borderRadius: '0.5rem',
-            fontWeight: '700',
-            fontSize: '0.9rem',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            animation: 'pulse 2s infinite'
-          }}>
-            ⏸️ TIMEOUT - {matchData.timeoutTeam === 'A' ? matchData.teamA : matchData.teamB}
+      </div>
+
+      {/* Completed Matches Section */}
+      <div className="matches-section">
+        <h2 className="section-title">Completed Matches</h2>
+        <div className="matches-grid">
+          {completedMatches.length > 0 ? (
+            completedMatches.slice(0, visibleCompleted).map((match) => (
+              <MatchPanel
+                key={match.id}
+                match={match}
+                isLive={false}
+                getTeamInitials={getTeamInitials}
+              />
+            ))
+          ) : (
+            <div className="no-matches">No completed matches yet</div>
+          )}
+        </div>
+        {completedMatches.length > visibleCompleted && (
+          <div className="see-more-container">
+            <button className="see-more-btn" onClick={handleSeeMore}>
+              SEE MORE
+            </button>
           </div>
         )}
-        <div className={`match-quarter ${matchData.isOvertime ? 'overtime' : ''}`}>
-          {matchData.isOvertime ? `OVERTIME ${matchData.quarter - 4}` : `Quarter ${matchData.quarter}`}
-        </div>
       </div>
-
-      {/* Main Scoreboard */}
-      <div className="scoreboard-main">
-        {/* Team A */}
-        <div className="team-section">
-          <h3 className="team-name">{matchData.teamA}</h3>
-          <div className="team-score">{matchData.scoreA || 0}</div>
-        </div>
-
-        {/* Timer & VS */}
-        <div className="scoreboard-center">
-          <div className="game-timer">
-            <Clock size={24} />
-            <span>{matchData.timerSeconds !== undefined ? formatTime(matchData.timerSeconds) : '12:00'}</span>
-          </div>
-          <div className="vs-text">VS</div>
-        </div>
-
-        {/* Team B */}
-        <div className="team-section">
-          <h3 className="team-name">{matchData.teamB}</h3>
-          <div className="team-score">{matchData.scoreB || 0}</div>
-        </div>
-      </div>
-
-      {/* Player Stats */}
-      <div className="player-stats-container">
-        {/* Team A Players */}
-        <div className="team-players">
-          <h4 className="players-title">
-            <Users size={20} />
-            {matchData.teamA} Players
-          </h4>
-          <div className="players-list">
-            {teamAPlayers.length > 0 ? (
-              teamAPlayers.map(([id, player]) => (
-                <PlayerCard key={id} player={player} />
-              ))
-            ) : (
-              <div className="no-players">No players added yet</div>
-            )}
-          </div>
-        </div>
-
-        {/* Team B Players */}
-        <div className="team-players">
-          <h4 className="players-title">
-            <Users size={20} />
-            {matchData.teamB} Players
-          </h4>
-          <div className="players-list">
-            {teamBPlayers.length > 0 ? (
-              teamBPlayers.map(([id, player]) => (
-                <PlayerCard key={id} player={player} />
-              ))
-            ) : (
-              <div className="no-players">No players added yet</div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Quarter Scores */}
-      {matchData.quarterScores && (
-        <div className="quarter-scores-display">
-          <h4>Quarter Scores</h4>
-          <div className="quarters-grid">
-            {[1, 2, 3, 4].map(q => {
-              const qKey = `q${q}`;
-              const qScore = matchData.quarterScores[qKey] || { teamA: 0, teamB: 0 };
-              return (
-                <div key={q} className={`quarter-box ${matchData.quarter === q ? 'current-quarter' : ''}`}>
-                  <div className="quarter-num">Q{q}</div>
-                  <div className="quarter-result">
-                    {qScore.teamA} - {qScore.teamB}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
     </motion.div>
   );
 };
 
-// Memoized Player Card Component to prevent unnecessary re-renders
-const PlayerCard = React.memo(({ player }) => (
-  <div className="player-card">
-    <span className="player-name">{player.name || 'Player'}</span>
-    <div className="player-stats">
-      <span className="points">{player.points || 0} pts</span>
-      <span className="fouls">{player.fouls || 0} fouls</span>
+// Match Panel Component
+const MatchPanel = ({ match, isLive, getTeamInitials }) => {
+  const [showDetailedView, setShowDetailedView] = useState(false);
+
+  return (
+    <>
+      <motion.div
+        className="match-panel"
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.3 }}
+      >
+        <div className="match-teams">
+          <div className="team-info">
+            <div className="team-circle">
+              <span className="team-initials">{getTeamInitials(match.teamA)}</span>
+            </div>
+            <span className="team-name-label">{match.teamA}</span>
+          </div>
+          
+          <div className="match-score-center">
+            <div className="score-display">
+              <span className="score-number">{match.scoreA}</span>
+              <span className="score-divider">-</span>
+              <span className="score-number">{match.scoreB}</span>
+            </div>
+            {!isLive && <div className="final-badge">Final</div>}
+          </div>
+          
+          <div className="team-info">
+            <div className="team-circle">
+              <span className="team-initials">{getTeamInitials(match.teamB)}</span>
+            </div>
+            <span className="team-name-label">{match.teamB}</span>
+          </div>
+        </div>
+        
+        <button 
+          className="view-match-btn"
+          onClick={() => setShowDetailedView(true)}
+        >
+          View Match
+        </button>
+      </motion.div>
+
+      {/* Detailed Match Modal */}
+      {showDetailedView && (
+        <DetailedMatchModal 
+          match={match} 
+          onClose={() => setShowDetailedView(false)}
+        />
+      )}
+    </>
+  );
+};
+
+// Detailed Match Modal Component
+const DetailedMatchModal = ({ match, onClose }) => {
+  const [matchDetails, setMatchDetails] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchMatchDetails = async () => {
+      try {
+        const { database, ref, get } = await getFirebaseDatabase();
+        
+        // Fetch from current match or completed matches
+        let matchData;
+        if (match.id === 'current') {
+          const currentRef = ref(database, 'matches/current');
+          const snapshot = await get(currentRef);
+          matchData = snapshot.val();
+        } else {
+          const completedRef = ref(database, `matches/completed/${match.id}`);
+          const snapshot = await get(completedRef);
+          matchData = snapshot.val();
+        }
+        
+        setMatchDetails(matchData);
+        setLoading(false);
+      } catch (error) {
+        console.error('Error fetching match details:', error);
+        setLoading(false);
+      }
+    };
+
+    fetchMatchDetails();
+  }, [match.id]);
+
+  const getPlayersByTeam = (team) => {
+    if (!matchDetails?.players) return [];
+    return Object.entries(matchDetails.players)
+      .filter(([_, player]) => player.team === team)
+      .sort((a, b) => (b[1].points || 0) - (a[1].points || 0));
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <motion.div 
+        className="modal-content"
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.3 }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="modal-header">
+          <h2 className="modal-title">Match Details</h2>
+          <button className="modal-close-btn" onClick={onClose}>×</button>
+        </div>
+
+        {loading ? (
+          <div className="modal-loading">Loading match details...</div>
+        ) : (
+          <div className="modal-body">
+            {/* Match Score Header */}
+            <div className="modal-score-header">
+              <div className="modal-team-section">
+                <h3 className="modal-team-name">{match.teamA}</h3>
+                <div className="modal-team-score">{match.scoreA}</div>
+              </div>
+              <div className="modal-vs">VS</div>
+              <div className="modal-team-section">
+                <h3 className="modal-team-name">{match.teamB}</h3>
+                <div className="modal-team-score">{match.scoreB}</div>
+              </div>
+            </div>
+
+            {/* Quarter Breakdown */}
+            {matchDetails?.quarterScores && (
+              <div className="quarter-breakdown">
+                <h4 className="breakdown-title">Quarter Breakdown</h4>
+                <table className="quarter-table">
+                  <thead>
+                    <tr>
+                      <th>Team</th>
+                      <th>Q1</th>
+                      <th>Q2</th>
+                      <th>Q3</th>
+                      <th>Q4</th>
+                      <th>Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>{match.teamA}</td>
+                      <td>{matchDetails.quarterScores.q1?.teamA || 0}</td>
+                      <td>{matchDetails.quarterScores.q2?.teamA || 0}</td>
+                      <td>{matchDetails.quarterScores.q3?.teamA || 0}</td>
+                      <td>{matchDetails.quarterScores.q4?.teamA || 0}</td>
+                      <td className="total-score">{match.scoreA}</td>
+                    </tr>
+                    <tr>
+                      <td>{match.teamB}</td>
+                      <td>{matchDetails.quarterScores.q1?.teamB || 0}</td>
+                      <td>{matchDetails.quarterScores.q2?.teamB || 0}</td>
+                      <td>{matchDetails.quarterScores.q3?.teamB || 0}</td>
+                      <td>{matchDetails.quarterScores.q4?.teamB || 0}</td>
+                      <td className="total-score">{match.scoreB}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Player Statistics */}
+            <div className="player-statistics">
+              <div className="team-stats-section">
+                <h4 className="stats-team-title">{match.teamA} Players</h4>
+                <table className="players-table">
+                  <thead>
+                    <tr>
+                      <th>Player</th>
+                      <th>Points</th>
+                      <th>Fouls</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {getPlayersByTeam('A').length > 0 ? (
+                      getPlayersByTeam('A').map(([id, player]) => (
+                        <tr key={id}>
+                          <td>{player.name || 'Player'}</td>
+                          <td className="points-cell">{player.points || 0}</td>
+                          <td className="fouls-cell">{player.fouls || 0}</td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr><td colSpan="3" className="no-data">No player data</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="team-stats-section">
+                <h4 className="stats-team-title">{match.teamB} Players</h4>
+                <table className="players-table">
+                  <thead>
+                    <tr>
+                      <th>Player</th>
+                      <th>Points</th>
+                      <th>Fouls</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {getPlayersByTeam('B').length > 0 ? (
+                      getPlayersByTeam('B').map(([id, player]) => (
+                        <tr key={id}>
+                          <td>{player.name || 'Player'}</td>
+                          <td className="points-cell">{player.points || 0}</td>
+                          <td className="fouls-cell">{player.fouls || 0}</td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr><td colSpan="3" className="no-data">No player data</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+      </motion.div>
     </div>
-  </div>
-));
+  );
+};
 
 export default LiveScoreboard;

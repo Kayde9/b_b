@@ -78,9 +78,9 @@ const Home = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.9 }}
             >
-              <Link to="/getting-here" className="btn btn-primary">
-                <MapPin size={20} />
-                View Event Map
+              <Link to="/scoreboard" className="btn btn-primary">
+                <Trophy size={20} />
+                View Live Match
               </Link>
               <Link to="/schedule" className="btn btn-secondary">
                 <Calendar size={20} />

@@ -1,0 +1,94 @@
+/* Scoreboard Page Styles */
+.scoreboard-page {
+  min-height: 100vh;
+  padding-top: 80px;
+}
+
+/* Page Header */
+.scoreboard-header {
+  text-align: center;
+  padding: 3rem 1rem 2rem;
+}
+
+.page-title {
+  font-size: 3rem;
+  font-weight: 900;
+  color: #FF6B35;
+  margin: 0 0 1rem 0;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  text-shadow: 0 0 30px rgba(255, 107, 53, 0.5);
+}
+
+.page-subtitle {
+  font-size: 1.2rem;
+  color: rgba(255, 255, 255, 0.7);
+  margin: 0;
+  font-weight: 400;
+}
+
+/* Scoreboard Content */
+.scoreboard-content {
+  padding: 2rem 1rem;
+}
+
+/* Info Section */
+.scoreboard-info {
+  padding: 2rem 1rem 4rem;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.info-box {
+  padding: 2rem;
+  text-align: center;
+}
+
+.info-box h3 {
+  color: #FF6B35;
+  font-size: 1.5rem;
+  margin: 0 0 1rem 0;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.info-box p {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 1rem;
+  line-height: 1.6;
+  margin: 0 0 1.5rem 0;
+}
+
+.info-box ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.info-box li {
+  color: #10b981;
+  font-size: 0.95rem;
+  font-weight: 600;
+  padding: 0.5rem;
+  background: rgba(16, 185, 129, 0.1);
+  border-radius: 0.5rem;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .page-title {
+    font-size: 2rem;
+  }
+
+  .page-subtitle {
+    font-size: 1rem;
+  }
+
+  .info-box ul {
+    grid-template-columns: 1fr;
+  }
+}

@@ -12,9 +12,12 @@ const Home = lazy(() => import('./pages/Home'));
 const GettingHere = lazy(() => import('./pages/GettingHere'));
 const JourneyAnimation = lazy(() => import('./pages/JourneyAnimation'));
 const Schedule = lazy(() => import('./pages/Schedule'));
+const Scoreboard = lazy(() => import('./pages/Scoreboard'));
 const Gallery = lazy(() => import('./pages/Gallery'));
 const Contact = lazy(() => import('./pages/Contact'));
 const AdminScoring = lazy(() => import('./pages/AdminScoring'));
+const MatchScheduler = lazy(() => import('./components/MatchScheduler'));
+const ScorerPortal = lazy(() => import('./components/ScorerPortal'));
 
 function App() {
   const [loading, setLoading] = useState(true);
@@ -51,8 +54,10 @@ function App() {
         <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <Suspense fallback={<PageLoader />}>
             <Routes>
-              {/* Admin route without navbar/footer */}
+              {/* Admin routes without navbar/footer */}
               <Route path="/admin-scoring" element={<AdminScoring />} />
+              <Route path="/match-scheduler" element={<MatchScheduler />} />
+              <Route path="/scorer-portal" element={<ScorerPortal />} />
         
               {/* Regular routes with navbar/footer */}
               <Route path="/" element={
@@ -80,6 +85,13 @@ function App() {
                 <div className="App">
                   <Navbar />
                   <Schedule />
+                  <Footer />
+                </div>
+              } />
+              <Route path="/scoreboard" element={
+                <div className="App">
+                  <Navbar />
+                  <Scoreboard />
                   <Footer />
                 </div>
               } />

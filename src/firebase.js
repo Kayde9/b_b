@@ -1,9 +1,24 @@
 // Centralized Firebase configuration and initialization
 import { initializeApp, getApps } from 'firebase/app';
 import { getDatabase, ref, onValue, update, set, get } from 'firebase/database';
+import { 
+  getFirestore, 
+  collection, 
+  doc, 
+  addDoc, 
+  updateDoc, 
+  deleteDoc, 
+  getDoc, 
+  getDocs, 
+  query, 
+  where, 
+  orderBy,
+  serverTimestamp 
+} from 'firebase/firestore';
 
 let firebaseApp = null;
 let firebaseDatabase = null;
+let firebaseFirestore = null;
 let firebaseAuth = null;
 let firebaseInitialized = false;
 let authInitialized = false;
@@ -52,6 +67,9 @@ export const initializeFirebase = async () => {
     console.log('Initializing database...');
     firebaseDatabase = getDatabase(firebaseApp);
     
+    console.log('Initializing Firestore...');
+    firebaseFirestore = getFirestore(firebaseApp);
+    
     console.log('Initializing auth...');
     try {
       const { getAuth } = await import('firebase/auth');
@@ -65,7 +83,7 @@ export const initializeFirebase = async () => {
     firebaseInitialized = true;
     console.log('Firebase initialization complete!');
     
-    return { app: firebaseApp, database: firebaseDatabase, auth: firebaseAuth };
+    return { app: firebaseApp, database: firebaseDatabase, firestore: firebaseFirestore, auth: firebaseAuth };
   } catch (error) {
     console.error('Firebase initialization error:', error);
     console.error('Error details:', error.message, error.code);
@@ -152,6 +170,35 @@ export const getCurrentUser = () => {
 // Check if user is authenticated
 export const isAuthenticated = () => {
   return authInitialized && firebaseAuth?.currentUser !== null;
+};
+
+// Firestore utility functions
+export const getFirestoreUtils = async () => {
+  if (!firebaseInitialized) {
+    await initializeFirebase();
+  }
+  
+  return {
+    firestore: firebaseFirestore,
+    collection,
+    doc,
+    addDoc,
+    updateDoc,
+    deleteDoc,
+    getDoc,
+    getDocs,
+    query,
+    where,
+    orderBy,
+    serverTimestamp
+  };
+};
+
+// Generate unique match ID
+export const generateMatchId = () => {
+  const timestamp = Date.now();
+  const random = Math.random().toString(36).substring(2, 9);
+  return `match_${timestamp}_${random}`;
 };
 
 export { firebaseConfig };

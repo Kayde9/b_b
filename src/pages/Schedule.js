@@ -1,37 +1,37 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Calendar, Clock, MapPin, Trophy, Eye } from 'lucide-react';
+import { Calendar, Clock, MapPin, Trophy } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { getFirebaseDatabase } from '../firebase';
-import LiveScoreboard from '../components/LiveScoreboard';
+import { getFirestoreUtils } from '../firebase';
 import './Schedule.css';
 
 const Schedule = () => {
   const [scheduledMatches, setScheduledMatches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [matchFilter, setMatchFilter] = useState('upcoming'); // 'upcoming' or 'past'
+  const [selectedMatch, setSelectedMatch] = useState(null);
+  const [matchPlayers, setMatchPlayers] = useState([]);
+  const [showMatchDetails, setShowMatchDetails] = useState(false);
   const navigate = useNavigate();
 
-  // Load scheduled matches from Firebase
+  // Load scheduled matches from Firestore
   useEffect(() => {
     const loadScheduledMatches = async () => {
       try {
-        const { database, ref, onValue } = await getFirebaseDatabase();
-        const scheduledRef = ref(database, 'matches/scheduled');
+        const { firestore, collection, getDocs, query, orderBy } = await getFirestoreUtils();
+        const matchesRef = collection(firestore, 'scheduledMatches');
+        const q = query(matchesRef, orderBy('date', 'asc'));
+        const snapshot = await getDocs(q);
         
-        onValue(scheduledRef, (snapshot) => {
-          const data = snapshot.val();
-          if (data) {
-            const matchesArray = Object.values(data).sort((a, b) => {
-              // Sort by date and time
-              const dateA = new Date(`${a.date} ${a.time}`);
-              const dateB = new Date(`${b.date} ${b.time}`);
-              return dateA - dateB;
-            });
-            setScheduledMatches(matchesArray);
-          }
-          setLoading(false);
-        });
+        const matchesArray = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+          // Determine status based on date
+          status: determineMatchStatus(doc.data().date, doc.data().time)
+        }));
+        
+        setScheduledMatches(matchesArray);
+        setLoading(false);
       } catch (error) {
         console.error('Error loading scheduled matches:', error);
         setLoading(false);
@@ -41,6 +41,18 @@ const Schedule = () => {
     loadScheduledMatches();
   }, []);
 
+  // Helper function to determine match status
+  const determineMatchStatus = (matchDate, matchTime) => {
+    const now = new Date();
+    const matchDateTime = new Date(`${matchDate} ${matchTime}`);
+    
+    if (matchDateTime > now) {
+      return 'upcoming';
+    } else {
+      return 'completed';
+    }
+  };
+
 
   // Filter matches based on status
   const upcomingMatches = scheduledMatches.filter(m => m.status === 'upcoming' || m.status === 'live');
@@ -48,32 +60,41 @@ const Schedule = () => {
 
   const displayedMatches = matchFilter === 'upcoming' ? upcomingMatches : pastMatches;
 
-  const handleViewScore = (matchId) => {
-    // Navigate to live scoreboard or match detail page
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+  const handleViewMatchDetails = async (match) => {
+    setSelectedMatch(match);
+    setShowMatchDetails(true);
+    
+    // Load players for this match
+    try {
+      const { firestore, collection, query, where, getDocs } = await getFirestoreUtils();
+      const playersRef = collection(firestore, 'players');
+      const q = query(playersRef, where('matchId', '==', match.matchId));
+      const snapshot = await getDocs(q);
+      
+      const players = [];
+      snapshot.forEach(doc => {
+        players.push({
+          id: doc.id,
+          ...doc.data()
+        });
+      });
+      
+      console.log('Loaded players for match:', match.matchId);
+      console.log('Total players found:', players.length);
+      console.log('Team A players:', players.filter(p => p.team === 'A').length);
+      console.log('Team B players:', players.filter(p => p.team === 'B').length);
+      console.log('All players:', players);
+      
+      setMatchPlayers(players);
+    } catch (error) {
+      console.error('Error loading players:', error);
+    }
   };
 
   return (
     <div className="schedule page-container dark-theme">
-      {/* Live Scoreboard */}
-      <section className="section" style={{ paddingTop: '1rem' }}>
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-        >
-          <h2 className="section-title" style={{ marginBottom: '2rem' }}>
-            LIVE MATCH SCOREBOARD
-          </h2>
-          <LiveScoreboard />
-        </motion.div>
-      </section>
-
       {/* Scheduled Matches from Firebase */}
-      <section className="schedule-section section">
-        <h2 className="section-title" style={{ marginBottom: '1.5rem' }}>
-          📅 SCHEDULED MATCHES
-        </h2>
+      <section className="schedule-section section" style={{ paddingTop: '100px' }}>
 
         {/* Tab Buttons */}
         <div className="match-filter-tabs">
@@ -117,40 +138,27 @@ const Schedule = () => {
                 whileHover={{ scale: 1.03 }}
               >
                 <div className="match-header">
-                  <div className="match-type">{match.roundType}</div>
-                  <div className={`match-status ${match.status === 'live' ? 'live' : match.hasScore ? 'completed' : 'upcoming'}`}>
-                    {match.status === 'live' ? 'LIVE' : match.hasScore ? 'Completed' : 'Upcoming'}
+                  <div className="match-type">Basketball</div>
+                  <div className={`match-status ${match.status === 'live' ? 'live' : match.status === 'completed' ? 'completed' : 'upcoming'}`}>
+                    {match.status === 'live' ? 'LIVE' : match.status === 'completed' ? 'Completed' : 'Upcoming'}
                   </div>
                 </div>
 
                 <div className="match-teams">
-                  <div className={`team team-1 ${match.status === 'completed' && match.finalScoreA > match.finalScoreB ? 'winner' : ''}`}>
+                  <div className="team team-1">
                     <div className="team-logo">🏀</div>
-                    <div className="team-name">{match.teamA} ({match.matchType})</div>
-                    {match.status === 'completed' && (
-                      <div className="final-score">{match.finalScoreA}</div>
-                    )}
+                    <div className="team-name">{match.teamA}</div>
                   </div>
 
                   <div className="vs-divider">
-                    <span className="vs-text">{match.status === 'completed' ? 'FINAL' : 'VS'}</span>
+                    <span className="vs-text">VS</span>
                   </div>
 
-                  <div className={`team team-2 ${match.status === 'completed' && match.finalScoreB > match.finalScoreA ? 'winner' : ''}`}>
+                  <div className="team team-2">
                     <div className="team-logo">🏀</div>
-                    <div className="team-name">{match.teamB} ({match.matchType})</div>
-                    {match.status === 'completed' && (
-                      <div className="final-score">{match.finalScoreB}</div>
-                    )}
+                    <div className="team-name">{match.teamB}</div>
                   </div>
                 </div>
-
-                {/* Winner Badge for Past Matches */}
-                {match.status === 'completed' && (
-                  <div className="winner-badge">
-                    Winner: {match.finalScoreA > match.finalScoreB ? match.teamA : match.finalScoreB > match.finalScoreA ? match.teamB : 'Tie'}
-                  </div>
-                )}
 
                 <div className="match-details">
                   <div className="detail">
@@ -163,16 +171,29 @@ const Schedule = () => {
                   </div>
                   <div className="detail">
                     <MapPin size={18} />
-                    <span>{match.court}</span>
+                    <span>{match.venue}</span>
                   </div>
                 </div>
 
+                {match.status === 'completed' && match.finalScore && (
+                  <div className="match-score-display">
+                    <div className="score-item">
+                      <span className="score-team">{match.teamA}</span>
+                      <span className="score-value">{match.finalScore.teamA}</span>
+                    </div>
+                    <div className="score-divider">-</div>
+                    <div className="score-item">
+                      <span className="score-value">{match.finalScore.teamB}</span>
+                      <span className="score-team">{match.teamB}</span>
+                    </div>
+                  </div>
+                )}
+
                 <button 
-                  className="view-score-btn"
-                  onClick={() => handleViewScore(match.id)}
+                  className="view-details-btn"
+                  onClick={() => handleViewMatchDetails(match)}
                 >
-                  <Eye size={18} />
-                  {match.status === 'completed' ? 'View Stats' : 'View Score'}
+                  View Details
                 </button>
               </motion.div>
             ))}
@@ -218,6 +239,138 @@ const Schedule = () => {
           </motion.div>
         </div>
       </section>
+
+      {/* Match Details Modal */}
+      {showMatchDetails && selectedMatch && (
+        <div className="modal-overlay" onClick={() => setShowMatchDetails(false)}>
+          <motion.div 
+            className="match-details-modal"
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="modal-header">
+              <h2>MATCH DETAILS</h2>
+              <button className="close-modal-btn" onClick={() => setShowMatchDetails(false)}>✕</button>
+            </div>
+
+            <div className="modal-content">
+              {/* Match Info */}
+              <div className="match-info-section">
+                <div className="teams-display">
+                  <div className="team-display">
+                    <h3>{selectedMatch.teamA}</h3>
+                    <div className="final-score">{selectedMatch.finalScore?.teamA || 0}</div>
+                  </div>
+                  <div className="vs-text-large">VS</div>
+                  <div className="team-display">
+                    <h3>{selectedMatch.teamB}</h3>
+                    <div className="final-score">{selectedMatch.finalScore?.teamB || 0}</div>
+                  </div>
+                </div>
+
+                {selectedMatch.winner && (
+                  <div className="winner-display">
+                    🏆 Winner: <strong>{selectedMatch.winner}</strong>
+                  </div>
+                )}
+              </div>
+
+              {/* Quarter Breakdown */}
+              {selectedMatch.quarterScores && (
+                <div className="quarter-breakdown-section">
+                  <h3>QUARTER BREAKDOWN</h3>
+                  <table className="quarter-table">
+                    <thead>
+                      <tr>
+                        <th>TEAM</th>
+                        <th>Q1</th>
+                        <th>Q2</th>
+                        <th>Q3</th>
+                        <th>Q4</th>
+                        <th>TOTAL</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td>{selectedMatch.teamA}</td>
+                        <td>{selectedMatch.quarterScores.q1?.teamA || 0}</td>
+                        <td>{selectedMatch.quarterScores.q2?.teamA || 0}</td>
+                        <td>{selectedMatch.quarterScores.q3?.teamA || 0}</td>
+                        <td>{selectedMatch.quarterScores.q4?.teamA || 0}</td>
+                        <td className="total-score">{selectedMatch.finalScore?.teamA || 0}</td>
+                      </tr>
+                      <tr>
+                        <td>{selectedMatch.teamB}</td>
+                        <td>{selectedMatch.quarterScores.q1?.teamB || 0}</td>
+                        <td>{selectedMatch.quarterScores.q2?.teamB || 0}</td>
+                        <td>{selectedMatch.quarterScores.q3?.teamB || 0}</td>
+                        <td>{selectedMatch.quarterScores.q4?.teamB || 0}</td>
+                        <td className="total-score">{selectedMatch.finalScore?.teamB || 0}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Players List */}
+              {matchPlayers.length > 0 ? (
+                <div className="players-section">
+                  <h3>{selectedMatch.teamA} PLAYERS ({matchPlayers.filter(p => p.team === 'A').length} total)</h3>
+                  <table className="players-table">
+                    <thead>
+                      <tr>
+                        <th>PLAYER</th>
+                        <th>POINTS</th>
+                        <th>FOULS</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {matchPlayers
+                        .filter(p => p.team === 'A')
+                        .map(player => (
+                          <tr key={player.id}>
+                            <td>{player.playerName}</td>
+                            <td>{selectedMatch.playerStats?.[player.id]?.points || 0}</td>
+                            <td>{selectedMatch.playerStats?.[player.id]?.fouls || 0}</td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+
+                  <h3>{selectedMatch.teamB} PLAYERS ({matchPlayers.filter(p => p.team === 'B').length} total)</h3>
+                  <table className="players-table">
+                    <thead>
+                      <tr>
+                        <th>PLAYER</th>
+                        <th>POINTS</th>
+                        <th>FOULS</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {matchPlayers
+                        .filter(p => p.team === 'B')
+                        .map(player => (
+                          <tr key={player.id}>
+                            <td>{player.playerName}</td>
+                            <td>{selectedMatch.playerStats?.[player.id]?.points || 0}</td>
+                            <td>{selectedMatch.playerStats?.[player.id]?.fouls || 0}</td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="players-section">
+                  <p style={{color: '#9ca3af', textAlign: 'center', padding: '2rem'}}>
+                    No players found for this match. Players need to be added in the Match Scheduler.
+                  </p>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 };

@@ -1,0 +1,857 @@
+/* Login Container */
+.scheduler-login-container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #000000 0%, #1a1a1a 50%, #2d1810 100%);
+  padding: 1rem;
+}
+
+.login-box {
+  background: linear-gradient(135deg, rgba(0, 0, 0, 0.95) 0%, rgba(26, 26, 26, 0.95) 100%);
+  border: 2px solid rgba(255, 107, 53, 0.4);
+  border-radius: 1rem;
+  padding: 3rem 2.5rem;
+  max-width: 450px;
+  width: 100%;
+  box-shadow: 0 0 50px rgba(255, 107, 53, 0.3);
+}
+
+.login-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.login-header svg {
+  color: #FF6B35;
+  margin-bottom: 1rem;
+}
+
+.login-header h1 {
+  font-size: 2rem;
+  font-weight: 900;
+  color: #FF6B35;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  text-shadow: 0 0 30px rgba(255, 107, 53, 0.6);
+  margin: 0 0 0.5rem 0;
+}
+
+.login-header p {
+  color: #9ca3af;
+  font-size: 1rem;
+  margin: 0;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.password-input {
+  width: 100%;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.4);
+  border: 2px solid rgba(255, 107, 53, 0.3);
+  border-radius: 0.5rem;
+  color: white;
+  font-size: 1.1rem;
+  text-align: center;
+  letter-spacing: 2px;
+  transition: all 0.3s ease;
+}
+
+.password-input:focus {
+  outline: none;
+  border-color: #FF6B35;
+  box-shadow: 0 0 20px rgba(255, 107, 53, 0.4);
+}
+
+.password-input::placeholder {
+  color: #6b7280;
+  letter-spacing: normal;
+}
+
+.login-error {
+  padding: 0.875rem;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 0.5rem;
+  color: #ef4444;
+  text-align: center;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.login-btn {
+  padding: 1rem 2rem;
+  background: #FF6B35;
+  color: white;
+  border: none;
+  border-radius: 0.5rem;
+  font-size: 1.1rem;
+  font-weight: 700;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  transition: all 0.3s ease;
+  box-shadow: 0 0 20px rgba(255, 107, 53, 0.3);
+}
+
+.login-btn:hover {
+  background: #e55a2b;
+  box-shadow: 0 0 30px rgba(255, 107, 53, 0.5);
+  transform: translateY(-2px);
+}
+
+/* Match Scheduler Container */
+.match-scheduler-container {
+  background: linear-gradient(135deg, rgba(0, 0, 0, 0.95) 0%, rgba(26, 26, 26, 0.95) 100%);
+  border: 2px solid rgba(255, 107, 53, 0.3);
+  border-radius: 1rem;
+  padding: 2.5rem;
+  min-height: 80vh;
+  box-shadow: 0 0 40px rgba(255, 107, 53, 0.25);
+}
+
+.scheduler-loading {
+  text-align: center;
+  padding: 3rem;
+  color: #d1d5db;
+  font-size: 1.1rem;
+}
+
+/* Header */
+.scheduler-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2.5rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 2px solid rgba(255, 107, 53, 0.3);
+}
+
+.scheduler-title {
+  font-size: 2.5rem;
+  font-weight: 900;
+  color: #FF6B35;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  text-shadow: 0 0 30px rgba(255, 107, 53, 0.6);
+  margin: 0;
+}
+
+.schedule-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.875rem 1.75rem;
+  background: transparent;
+  color: #FF6B35;
+  border: 2px solid #FF6B35;
+  border-radius: 0.5rem;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  box-shadow: 0 0 15px rgba(255, 107, 53, 0.3);
+}
+
+.schedule-btn:hover {
+  background: rgba(255, 107, 53, 0.15);
+  box-shadow: 0 0 25px rgba(255, 107, 53, 0.5);
+  transform: translateY(-2px);
+}
+
+/* Matches List */
+.matches-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  gap: 1.5rem;
+}
+
+.no-matches-scheduled {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 2rem;
+  color: #9ca3af;
+  gap: 1rem;
+}
+
+.no-matches-scheduled svg {
+  color: #FF6B35;
+  opacity: 0.5;
+}
+
+/* Match Card */
+.match-card {
+  background: linear-gradient(135deg, rgba(0, 0, 0, 0.6) 0%, rgba(31, 41, 55, 0.4) 100%);
+  border: 2px solid rgba(255, 107, 53, 0.3);
+  border-radius: 1rem;
+  padding: 1.5rem;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+}
+
+.match-card:hover {
+  border-color: #FF6B35;
+  box-shadow: 0 0 25px rgba(255, 107, 53, 0.4);
+  transform: translateY(-3px);
+}
+
+.match-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid rgba(255, 107, 53, 0.2);
+}
+
+.match-teams {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex: 1;
+}
+
+.team-name {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: white;
+}
+
+.vs {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #9ca3af;
+}
+
+.match-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.action-btn {
+  padding: 0.5rem;
+  background: transparent;
+  border: 1px solid rgba(255, 107, 53, 0.3);
+  border-radius: 0.375rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.edit-btn {
+  color: #FF6B35;
+}
+
+.edit-btn:hover {
+  background: rgba(255, 107, 53, 0.1);
+  border-color: #FF6B35;
+}
+
+.delete-btn {
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.delete-btn:hover {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: #ef4444;
+}
+
+.match-card-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.detail-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #d1d5db;
+  font-size: 0.9rem;
+}
+
+.detail-item svg {
+  color: #FF6B35;
+}
+
+.match-id {
+  font-family: 'Courier New', monospace;
+  font-size: 0.85rem;
+  color: #9ca3af;
+}
+
+.add-players-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.75rem;
+  background: transparent;
+  color: #FF6B35;
+  border: 2px solid #FF6B35;
+  border-radius: 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.add-players-btn:hover {
+  background: rgba(255, 107, 53, 0.15);
+  box-shadow: 0 0 15px rgba(255, 107, 53, 0.3);
+}
+
+/* Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+  backdrop-filter: blur(5px);
+}
+
+.modal-content {
+  background: linear-gradient(135deg, rgba(0, 0, 0, 0.95) 0%, rgba(26, 26, 26, 0.95) 100%);
+  border: 2px solid rgba(255, 107, 53, 0.4);
+  border-radius: 1rem;
+  max-width: 600px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 0 50px rgba(255, 107, 53, 0.3);
+}
+
+.players-modal {
+  max-width: 900px;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem 2rem;
+  border-bottom: 2px solid rgba(255, 107, 53, 0.3);
+}
+
+.modal-header h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #FF6B35;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin: 0;
+}
+
+.modal-close-btn {
+  background: transparent;
+  border: none;
+  color: #FF6B35;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+}
+
+.modal-close-btn:hover {
+  color: white;
+  transform: rotate(90deg);
+}
+
+/* Schedule Form */
+.schedule-form {
+  padding: 2rem;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.form-group label {
+  color: #FF6B35;
+  font-weight: 600;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.form-group input {
+  padding: 0.75rem;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 107, 53, 0.3);
+  border-radius: 0.5rem;
+  color: white;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: #FF6B35;
+  box-shadow: 0 0 15px rgba(255, 107, 53, 0.3);
+}
+
+.form-group input::placeholder {
+  color: #6b7280;
+}
+
+.form-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+  margin-top: 2rem;
+}
+
+.cancel-btn,
+.submit-btn {
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.cancel-btn {
+  background: transparent;
+  color: #9ca3af;
+  border: 1px solid #6b7280;
+}
+
+.cancel-btn:hover {
+  background: rgba(107, 114, 128, 0.1);
+  color: white;
+}
+
+.submit-btn {
+  background: #FF6B35;
+  color: white;
+  border: none;
+  box-shadow: 0 0 15px rgba(255, 107, 53, 0.3);
+}
+
+.submit-btn:hover {
+  background: #e55a2b;
+  box-shadow: 0 0 25px rgba(255, 107, 53, 0.5);
+  transform: translateY(-2px);
+}
+
+/* Excel Upload Section */
+.excel-upload-section {
+  padding: 2rem;
+  background: rgba(255, 107, 53, 0.05);
+  border-bottom: 2px solid rgba(255, 107, 53, 0.2);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  text-align: center;
+}
+
+.upload-excel-btn-large {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 2rem 3rem;
+  background: rgba(255, 107, 53, 0.1);
+  color: #FF6B35;
+  border: 3px dashed #FF6B35;
+  border-radius: 1rem;
+  font-size: 1.1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  min-width: 300px;
+}
+
+.upload-excel-btn-large:hover {
+  background: rgba(255, 107, 53, 0.2);
+  border-style: solid;
+  box-shadow: 0 0 25px rgba(255, 107, 53, 0.4);
+  transform: translateY(-3px);
+}
+
+.uploaded-file-name {
+  color: #10b981;
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.excel-help-text {
+  color: #9ca3af;
+  font-size: 0.9rem;
+  margin: 0;
+  max-width: 600px;
+}
+
+.excel-help-text strong {
+  color: #FF6B35;
+}
+
+/* Players Form */
+.players-form {
+  padding: 2rem;
+}
+
+/* Players Display Grid */
+.players-display-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+  margin-bottom: 2rem;
+}
+
+.team-players-display {
+  background: rgba(0, 0, 0, 0.3);
+  border: 2px solid rgba(255, 107, 53, 0.3);
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+}
+
+.team-players-display h3 {
+  color: #FF6B35;
+  font-size: 1.1rem;
+  margin: 0 0 0.5rem 0;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.players-count {
+  color: #9ca3af;
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+  font-weight: 600;
+}
+
+.players-list-display {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.player-display-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem;
+  background: rgba(31, 41, 55, 0.5);
+  border: 1px solid rgba(255, 107, 53, 0.2);
+  border-radius: 0.5rem;
+  transition: all 0.3s ease;
+}
+
+.player-display-row:hover {
+  background: rgba(31, 41, 55, 0.8);
+  border-color: #FF6B35;
+}
+
+.player-jersey {
+  color: #FF6B35;
+  font-weight: 700;
+  font-size: 1rem;
+  min-width: 50px;
+}
+
+.player-name {
+  color: white;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+/* No Players Message */
+.no-players-message {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 2rem;
+  gap: 1rem;
+  text-align: center;
+}
+
+.no-players-message svg {
+  color: #9ca3af;
+  opacity: 0.5;
+}
+
+.no-players-message p {
+  color: #9ca3af;
+  font-size: 1.1rem;
+  margin: 0;
+}
+
+.no-players-message .hint {
+  color: #6b7280;
+  font-size: 0.9rem;
+}
+
+.players-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+  margin-bottom: 2rem;
+}
+
+.team-players-section h3 {
+  color: #FF6B35;
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.player-input-row {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.jersey-input {
+  width: 80px;
+  padding: 0.625rem;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 107, 53, 0.3);
+  border-radius: 0.375rem;
+  color: white;
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+.name-input {
+  flex: 1;
+  padding: 0.625rem;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 107, 53, 0.3);
+  border-radius: 0.375rem;
+  color: white;
+  font-size: 0.9rem;
+}
+
+.jersey-input:focus,
+.name-input:focus {
+  outline: none;
+  border-color: #FF6B35;
+  box-shadow: 0 0 10px rgba(255, 107, 53, 0.3);
+}
+
+.jersey-input::placeholder,
+.name-input::placeholder {
+  color: #6b7280;
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+  .matches-list {
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  }
+
+  .players-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .match-scheduler-container {
+    padding: 1.5rem;
+  }
+
+  .scheduler-header {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: stretch;
+  }
+
+  .scheduler-title {
+    font-size: 2rem;
+    text-align: center;
+  }
+
+  .schedule-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .matches-list {
+    grid-template-columns: 1fr;
+  }
+
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .modal-content {
+    max-height: 95vh;
+  }
+
+  .modal-header {
+    padding: 1rem 1.5rem;
+  }
+
+  .modal-header h2 {
+    font-size: 1.25rem;
+  }
+
+  .schedule-form,
+  .players-form {
+    padding: 1.5rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .match-scheduler-container {
+    padding: 1rem;
+  }
+
+  .scheduler-title {
+    font-size: 1.5rem;
+  }
+
+  .schedule-btn {
+    padding: 0.75rem 1.25rem;
+    font-size: 0.9rem;
+  }
+
+  .match-card {
+    padding: 1.25rem;
+  }
+
+  .match-card-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+
+  .match-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .modal-overlay {
+    padding: 0;
+  }
+
+  .modal-content {
+    max-height: 100vh;
+    height: 100vh;
+    border-radius: 0;
+  }
+
+  .modal-header {
+    padding: 1rem;
+  }
+
+  .modal-header h2 {
+    font-size: 1.1rem;
+  }
+
+  .schedule-form,
+  .players-form {
+    padding: 1rem;
+  }
+
+  .form-actions {
+    flex-direction: column;
+  }
+
+  .cancel-btn,
+  .submit-btn {
+    width: 100%;
+  }
+
+  .player-input-row {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .jersey-input {
+    width: 100%;
+  }
+}
+
+@media (max-width: 400px) {
+  .scheduler-title {
+    font-size: 1.25rem;
+  }
+
+  .team-name {
+    font-size: 1rem;
+  }
+
+  .detail-item {
+    font-size: 0.85rem;
+  }
+}
+
+/* iOS Specific Fixes */
+@supports (-webkit-touch-callout: none) {
+  .modal-content {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  input {
+    -webkit-appearance: none;
+    appearance: none;
+    border-radius: 0.5rem;
+  }
+
+  input[type="date"],
+  input[type="time"] {
+    min-height: 44px;
+  }
+}
+
+/* Android Specific Fixes */
+@media (hover: none) and (pointer: coarse) {
+  .action-btn,
+  .schedule-btn,
+  .add-players-btn,
+  .submit-btn,
+  .cancel-btn {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}

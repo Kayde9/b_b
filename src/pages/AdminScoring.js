@@ -1,18 +1,21 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Trash2, Save, Lock, LogOut, Users, Trophy, Play, Pause, RotateCcw, Clock, RefreshCw, AlertTriangle, Upload, FileSpreadsheet, Home } from 'lucide-react';
-import { getFirebaseDatabase } from '../firebase';
-import { useNavigate } from 'react-router-dom';
+import { getFirebaseDatabase, getFirestoreUtils } from '../firebase';
+import { useNavigate, useLocation } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import './AdminScoring.css';
 
 const AdminScoring = () => {
   // All hooks must be declared at the top, before any conditional returns
   const navigate = useNavigate();
+  const location = useLocation();
   const [error, setError] = useState(null);
   const [authenticated, setAuthenticated] = useState(false);
   const [userRole, setUserRole] = useState(null); // 'admin', 'scorer1', 'scorer2'
   const [password, setPassword] = useState('');
+  const [selectedMatchId, setSelectedMatchId] = useState(null);
+  const [loadedPlayers, setLoadedPlayers] = useState([]);
   const [matchData, setMatchData] = useState(null);
   const [firebase, setFirebase] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -266,6 +269,55 @@ const AdminScoring = () => {
       unsubscribe();
     };
   }, [firebase]);
+
+  // Load match and players from Firestore when matchId is provided
+  useEffect(() => {
+    const loadMatchFromFirestore = async () => {
+      const params = new URLSearchParams(location.search);
+      const matchId = params.get('matchId');
+      
+      if (matchId && authenticated) {
+        setSelectedMatchId(matchId);
+        try {
+          const { firestore, collection, query, where, getDocs, doc, getDoc } = await getFirestoreUtils();
+          
+          // Load match details
+          const matchesRef = collection(firestore, 'scheduledMatches');
+          const q = query(matchesRef, where('matchId', '==', matchId));
+          const matchSnapshot = await getDocs(q);
+          
+          if (!matchSnapshot.empty) {
+            const matchDoc = matchSnapshot.docs[0];
+            const matchInfo = matchDoc.data();
+            
+            // Load players for this match
+            const playersRef = collection(firestore, 'players');
+            const playersQuery = query(playersRef, where('matchId', '==', matchId));
+            const playersSnapshot = await getDocs(playersQuery);
+            
+            const players = [];
+            playersSnapshot.forEach(doc => {
+              players.push({ id: doc.id, ...doc.data() });
+            });
+            
+            setLoadedPlayers(players);
+            
+            // Update match data with team names
+            if (firebase && matchData) {
+              await updateMatchInfo('teamA', matchInfo.teamA);
+              await updateMatchInfo('teamB', matchInfo.teamB);
+              showNotification(`Match loaded: ${matchInfo.teamA} vs ${matchInfo.teamB}`);
+            }
+          }
+        } catch (error) {
+          console.error('Error loading match from Firestore:', error);
+          showNotification('Failed to load match data');
+        }
+      }
+    };
+    
+    loadMatchFromFirestore();
+  }, [location.search, authenticated, firebase]);
 
   const loadPastMatches = React.useCallback(async () => {
     try {
@@ -1849,8 +1901,14 @@ const AdminScoring = () => {
     );
   }
 
-  const teamAPlayers = Object.entries(matchData?.players || {}).filter(([_, player]) => player.team === 'A');
-  const teamBPlayers = Object.entries(matchData?.players || {}).filter(([_, player]) => player.team === 'B');
+  // Use loaded players from Firestore if available, otherwise use Firebase Realtime Database players
+  const teamAPlayers = loadedPlayers.length > 0
+    ? loadedPlayers.filter(player => player.team === 'A').map(player => [player.id, { name: player.playerName, jersey: player.jerseyNumber, team: player.team, points: 0, fouls: 0 }])
+    : Object.entries(matchData?.players || {}).filter(([_, player]) => player.team === 'A');
+  
+  const teamBPlayers = loadedPlayers.length > 0
+    ? loadedPlayers.filter(player => player.team === 'B').map(player => [player.id, { name: player.playerName, jersey: player.jerseyNumber, team: player.team, points: 0, fouls: 0 }])
+    : Object.entries(matchData?.players || {}).filter(([_, player]) => player.team === 'B');
 
   // STAGE 0: MENU - Choose action
   if (matchStage === 'menu') {
