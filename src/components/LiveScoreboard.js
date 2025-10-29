@@ -125,6 +125,21 @@ const LiveScoreboard = () => {
         <div className={`status-indicator ${matchData.isRunning ? 'live' : 'paused'}`}>
           {matchData.isRunning ? '● LIVE' : '⏸ PAUSED'}
         </div>
+        {matchData.timeoutActive && (
+          <div className="timeout-indicator" style={{
+            background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+            padding: '0.5rem 1rem',
+            borderRadius: '0.5rem',
+            fontWeight: '700',
+            fontSize: '0.9rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            animation: 'pulse 2s infinite'
+          }}>
+            ⏸️ TIMEOUT - {matchData.timeoutTeam === 'A' ? matchData.teamA : matchData.teamB}
+          </div>
+        )}
         <div className={`match-quarter ${matchData.isOvertime ? 'overtime' : ''}`}>
           {matchData.isOvertime ? `OVERTIME ${matchData.quarter - 4}` : `Quarter ${matchData.quarter}`}
         </div>

@@ -11,6 +11,7 @@ const AdminScoring = () => {
   const navigate = useNavigate();
   const [error, setError] = useState(null);
   const [authenticated, setAuthenticated] = useState(false);
+  const [userRole, setUserRole] = useState(null); // 'admin', 'scorer1', 'scorer2'
   const [password, setPassword] = useState('');
   const [matchData, setMatchData] = useState(null);
   const [firebase, setFirebase] = useState(null);
@@ -69,44 +70,20 @@ const AdminScoring = () => {
   const [isLocked, setIsLocked] = useState(false);
   const [lockoutTime, setLockoutTime] = useState(null);
 
-  // Multi-scorer system - Court selection
-  const [selectedCourt, setSelectedCourt] = useState(null);
-  const [courtPassword, setCourtPassword] = useState('');
-  
-  // Court passwords
-  const COURT_PASSWORDS = {
-    'Court A': 'courtA123',
-    'Court B': 'courtB123',
-    'Court C': 'courtC123'
+  // Role-based credentials
+  const CREDENTIALS = {
+    admin: process.env.REACT_APP_ADMIN_PASSWORD || 'admin2025',
+    scorer1: process.env.REACT_APP_SCORER1_PASSWORD || 'scorer1',
+    scorer2: process.env.REACT_APP_SCORER2_PASSWORD || 'scorer2'
   };
 
-  // Use environment variable for admin password with fallback
-  const ADMIN_PASSWORD = process.env.REACT_APP_ADMIN_PASSWORD || 'nmims2025';
-
-  // Load selected court from localStorage on mount
-  useEffect(() => {
-    const savedCourt = localStorage.getItem('selectedCourt');
-    const savedPassword = localStorage.getItem('courtPassword');
-    if (savedCourt && savedPassword && COURT_PASSWORDS[savedCourt] === savedPassword) {
-      setSelectedCourt(savedCourt);
-      setCourtPassword(savedPassword);
-      setMatchScheduleData(prev => ({ ...prev, court: savedCourt }));
-    }
-  }, []);
-
-  // Get court-specific Firebase path
+  // Get Firebase path for current match
   const getCourtPath = () => {
-    const courtKey = selectedCourt ? selectedCourt.replace(' ', '_').toLowerCase() : 'court_a';
-    return `matches/${courtKey}`;
-  };
-
-  // Helper to replace 'matches/current' with court-specific path
-  const replaceMatchPath = (path) => {
-    return path.replace('matches/current', getCourtPath());
+    return 'matches/current';
   };
 
   const updateMatchInfo = React.useCallback(async (field, value) => {
-    if (!firebase || !selectedCourt) return;
+    if (!firebase) return;
     
     // Optimistic update - update local state immediately to prevent flickering
     if (matchData) {
@@ -129,27 +106,62 @@ const AdminScoring = () => {
         setMatchData(matchData);
       }
     }
-  }, [firebase, matchData, selectedCourt]);
+  }, [firebase, matchData]);
 
   const stopTimer = React.useCallback(async () => {
-    if (!firebase || !selectedCourt) return;
-    const courtPath = getCourtPath();
-    const updates = {};
-    updates[`${courtPath}/isRunning`] = false;
-    updates[`${courtPath}/lastUpdated`] = Date.now();
+    if (!firebase) {
+      console.warn('Cannot stop timer: Firebase not initialized');
+      return;
+    }
+    
     try {
+      const courtPath = getCourtPath();
+      const updates = {};
+      updates[`${courtPath}/isRunning`] = false;
+      updates[`${courtPath}/lastUpdated`] = Date.now();
+      
+      // Optimistically update local state first
+      if (matchData) {
+        const optimisticData = { ...matchData, isRunning: false };
+        prevMatchDataRef.current = optimisticData;
+        setMatchData(optimisticData);
+      }
+      
       await firebase.update(firebase.ref(firebase.database), updates);
+      console.log('Timer stopped successfully');
     } catch (error) {
       console.error('Error stopping timer:', error);
+      showNotification('Failed to pause timer. Please try again.');
+      
+      // Revert optimistic update on error
+      if (matchData) {
+        setMatchData(matchData);
+      }
     }
-  }, [firebase, selectedCourt]);
+  }, [firebase, matchData]);
 
   const endTimeout = React.useCallback(async () => {
     setTimeoutActive(false);
     setTimeoutSeconds(60);
     setTimeoutTeam(null);
+    
+    // Clear timeout state in Firebase
+    if (firebase) {
+      const courtPath = getCourtPath();
+      const updates = {};
+      updates[`${courtPath}/timeoutActive`] = false;
+      updates[`${courtPath}/timeoutTeam`] = null;
+      updates[`${courtPath}/lastUpdated`] = Date.now();
+      
+      try {
+        await firebase.update(firebase.ref(firebase.database), updates);
+      } catch (error) {
+        console.error('Error ending timeout:', error);
+      }
+    }
+    
     showNotification('Timeout ended');
-  }, []);
+  }, [firebase]);
 
   const initFirebase = React.useCallback(async () => {
     try {
@@ -166,12 +178,12 @@ const AdminScoring = () => {
     }
   }, []);
 
-  // Separate effect to listen to court-specific match data
+  // Listen to match data
   useEffect(() => {
-    if (!firebase || !selectedCourt) return;
+    if (!firebase) return;
 
     const courtPath = getCourtPath();
-    console.log('Listening to court path:', courtPath);
+    console.log('Listening to match path:', courtPath);
     const matchRef = firebase.ref(firebase.database, courtPath);
     
     const unsubscribe = firebase.onValue(matchRef, (snapshot) => {
@@ -213,8 +225,8 @@ const AdminScoring = () => {
           }
         }
       } else {
-        // Initialize default match for this court
-        console.log('No match data found for', selectedCourt, ', initializing');
+        // Initialize default match
+        console.log('No match data found, initializing');
         const updates = {};
         updates[courtPath] = {
           teamA: '',
@@ -236,12 +248,12 @@ const AdminScoring = () => {
             q4: { teamA: 0, teamB: 0 }
           },
           timeouts: {
-            teamA: { q1: 2, q2: 2, q3: 2, q4: 4 },
-            teamB: { q1: 2, q2: 2, q3: 2, q4: 4 }
+            teamA: { q1: 2, q2: 2, q3: 2, q4: 2 },
+            teamB: { q1: 2, q2: 2, q3: 2, q4: 2 }
           },
           matchStage: 'menu',
           matchType: 'Boys',
-          court: selectedCourt,
+          court: 'Court A',
           roundType: 'Knockout Round',
           lastUpdated: Date.now()
         };
@@ -250,10 +262,10 @@ const AdminScoring = () => {
     });
 
     return () => {
-      console.log('Cleaning up court listener');
+      console.log('Cleaning up match listener');
       unsubscribe();
     };
-  }, [firebase, selectedCourt]);
+  }, [firebase]);
 
   const loadPastMatches = React.useCallback(async () => {
     try {
@@ -336,7 +348,7 @@ const AdminScoring = () => {
             stopTimer();
             // Auto-advance to next quarter when timer reaches 0
             setTimeout(async () => {
-              if (matchData && firebase && selectedCourt) {
+              if (matchData && firebase) {
                 const currentQuarter = matchData.quarter;
                 const courtPath = getCourtPath();
                 const updates = {};
@@ -375,19 +387,15 @@ const AdminScoring = () => {
               }
             }, 100); // Small delay to ensure stopTimer completes
           }
-          // Update Firebase less frequently to reduce network traffic and prevent conflicts
-          // Only update every 5 seconds or when timer hits 0
-          const now = Date.now();
-          if (newTime === 0 || (now - lastUpdateTime >= 5000)) {
-            lastUpdateTime = now;
-            if (firebase) {
-              const updates = {};
-              updates['matches/current/timerSeconds'] = newTime;
-              // Don't update lastUpdated to prevent triggering Firebase listener
-              firebase.update(firebase.ref(firebase.database), updates).catch(err => {
-                console.error('Error updating timer:', err);
-              });
-            }
+          // Update Firebase every second for real-time display
+          if (firebase) {
+            const courtPath = getCourtPath();
+            const updates = {};
+            updates[`${courtPath}/timerSeconds`] = newTime;
+            // Don't update lastUpdated to prevent triggering Firebase listener
+            firebase.update(firebase.ref(firebase.database), updates).catch(err => {
+              console.error('Error updating timer:', err);
+            });
           }
           return newTime;
         });
@@ -402,7 +410,7 @@ const AdminScoring = () => {
         clearInterval(timerIntervalRef.current);
       }
     };
-  }, [matchData?.isRunning, matchData, stopTimer, firebase, selectedCourt, quarterDuration]);
+  }, [matchData?.isRunning, matchData, stopTimer, firebase, quarterDuration]);
 
   // Prevent accidental navigation when match is active
   useEffect(() => {
@@ -527,6 +535,15 @@ const AdminScoring = () => {
     setTimeout(() => setNotification(''), 3000);
   };
 
+  // Permission helper functions
+  const isAdmin = () => userRole === 'admin';
+  const isScorer = () => userRole === 'scorer1' || userRole === 'scorer2';
+  const canScheduleMatches = () => isAdmin();
+  const canDeleteMatches = () => isAdmin();
+  const canManagePlayers = () => isAdmin();
+  const canViewPastMatches = () => isAdmin();
+  const canScore = () => isScorer(); // Only scorers can score, admin can only view
+
   const handleLogin = (e) => {
     e.preventDefault();
     
@@ -545,18 +562,36 @@ const AdminScoring = () => {
     }
     
     // Validate password length to prevent timing attacks
-    if (!password || password.length < 6) {
+    if (!password || password.length < 3) {
       setError('Invalid password format');
       setLoginAttempts(prev => prev + 1);
       return;
     }
     
-    if (password.trim() === ADMIN_PASSWORD) {
+    // Check against all roles
+    const trimmedPassword = password.trim();
+    let authenticatedRole = null;
+    
+    if (trimmedPassword === CREDENTIALS.admin) {
+      authenticatedRole = 'admin';
+    } else if (trimmedPassword === CREDENTIALS.scorer1) {
+      authenticatedRole = 'scorer1';
+    } else if (trimmedPassword === CREDENTIALS.scorer2) {
+      authenticatedRole = 'scorer2';
+    }
+    
+    if (authenticatedRole) {
       setAuthenticated(true);
+      setUserRole(authenticatedRole);
       setError(null);
       setLoginAttempts(0);
       setPassword('');
-      showNotification('Login successful!');
+      const roleNames = {
+        admin: 'Admin',
+        scorer1: 'Scorer 1',
+        scorer2: 'Scorer 2'
+      };
+      showNotification(`Welcome ${roleNames[authenticatedRole]}!`);
     } else {
       const newAttempts = loginAttempts + 1;
       setLoginAttempts(newAttempts);
@@ -658,35 +693,36 @@ const AdminScoring = () => {
 
   const resetCurrentMatch = async () => {
     try {
+      const courtPath = getCourtPath();
       const updates = {};
-      updates['matches/current/matchStage'] = 'menu';
-      updates['matches/current/isRunning'] = false;
-      updates['matches/current/timerSeconds'] = 600;
-      updates['matches/current/quarter'] = 1;
-      updates['matches/current/scoreA'] = 0;
-      updates['matches/current/scoreB'] = 0;
-      updates['matches/current/teamA'] = '';
-      updates['matches/current/teamB'] = '';
-      updates['matches/current/teamAPlaying'] = [];
-      updates['matches/current/teamBPlaying'] = [];
-      updates['matches/current/players'] = {};
-      updates['matches/current/scheduleId'] = null;
-      updates['matches/current/matchType'] = null;
-      updates['matches/current/court'] = null;
-      updates['matches/current/scheduledDate'] = null;
-      updates['matches/current/scheduledTime'] = null;
-      updates['matches/current/roundType'] = null;
-      updates['matches/current/quarterScores'] = {
+      updates[`${courtPath}/matchStage`] = 'menu';
+      updates[`${courtPath}/isRunning`] = false;
+      updates[`${courtPath}/timerSeconds`] = 600;
+      updates[`${courtPath}/quarter`] = 1;
+      updates[`${courtPath}/scoreA`] = 0;
+      updates[`${courtPath}/scoreB`] = 0;
+      updates[`${courtPath}/teamA`] = '';
+      updates[`${courtPath}/teamB`] = '';
+      updates[`${courtPath}/teamAPlaying`] = [];
+      updates[`${courtPath}/teamBPlaying`] = [];
+      updates[`${courtPath}/players`] = {};
+      updates[`${courtPath}/scheduleId`] = null;
+      updates[`${courtPath}/matchType`] = null;
+      updates[`${courtPath}/court`] = null;
+      updates[`${courtPath}/scheduledDate`] = null;
+      updates[`${courtPath}/scheduledTime`] = null;
+      updates[`${courtPath}/roundType`] = null;
+      updates[`${courtPath}/quarterScores`] = {
         q1: { teamA: 0, teamB: 0 },
         q2: { teamA: 0, teamB: 0 },
         q3: { teamA: 0, teamB: 0 },
         q4: { teamA: 0, teamB: 0 }
       };
-      updates['matches/current/timeouts'] = {
+      updates[`${courtPath}/timeouts`] = {
         teamA: { q1: 2, q2: 2, q3: 2, q4: 4 },
         teamB: { q1: 2, q2: 2, q3: 2, q4: 4 }
       };
-      updates['matches/current/lastUpdated'] = Date.now();
+      updates[`${courtPath}/lastUpdated`] = Date.now();
       
       await firebase.update(firebase.ref(firebase.database), updates);
       
@@ -777,15 +813,16 @@ const AdminScoring = () => {
       };
 
       // Save to Firebase scheduled matches
+      const courtPath = getCourtPath();
       const updates = {};
       updates[`matches/scheduled/${scheduleId}`] = scheduledMatch;
-      updates['matches/current/scheduleId'] = scheduleId;
-      updates['matches/current/matchType'] = matchScheduleData.matchType;
-      updates['matches/current/court'] = matchScheduleData.court;
-      updates['matches/current/scheduledDate'] = matchScheduleData.date;
-      updates['matches/current/scheduledTime'] = matchScheduleData.time;
-      updates['matches/current/roundType'] = matchScheduleData.roundType;
-      updates['matches/current/lastUpdated'] = Date.now();
+      updates[`${courtPath}/scheduleId`] = scheduleId;
+      updates[`${courtPath}/matchType`] = matchScheduleData.matchType;
+      updates[`${courtPath}/court`] = matchScheduleData.court;
+      updates[`${courtPath}/scheduledDate`] = matchScheduleData.date;
+      updates[`${courtPath}/scheduledTime`] = matchScheduleData.time;
+      updates[`${courtPath}/roundType`] = matchScheduleData.roundType;
+      updates[`${courtPath}/lastUpdated`] = Date.now();
 
       await firebase.update(firebase.ref(firebase.database), updates);
       
@@ -807,7 +844,13 @@ const AdminScoring = () => {
   };
 
   const startTimer = async () => {
-    await updateMatchInfo('isRunning', true);
+    try {
+      await updateMatchInfo('isRunning', true);
+      console.log('Timer started successfully');
+    } catch (error) {
+      console.error('Error starting timer:', error);
+      showNotification('Failed to start timer. Please try again.');
+    }
   };
 
   const resetTimer = async () => {
@@ -998,11 +1041,12 @@ const AdminScoring = () => {
     setTeamAPlaying([]);
     setTeamBPlaying([]);
     
+    const courtPath = getCourtPath();
     const updates = {};
-    updates['matches/current/matchStage'] = 'selectPlaying5';
-    updates['matches/current/teamAPlaying'] = [];
-    updates['matches/current/teamBPlaying'] = [];
-    updates['matches/current/lastUpdated'] = Date.now();
+    updates[`${courtPath}/matchStage`] = 'selectPlaying5';
+    updates[`${courtPath}/teamAPlaying`] = [];
+    updates[`${courtPath}/teamBPlaying`] = [];
+    updates[`${courtPath}/lastUpdated`] = Date.now();
     
     try {
       await firebase.update(firebase.ref(firebase.database), updates);
@@ -1020,11 +1064,12 @@ const AdminScoring = () => {
     setTeamAPlaying([]);
     setTeamBPlaying([]);
     
+    const courtPath = getCourtPath();
     const updates = {};
-    updates['matches/current/matchStage'] = 'setup';
-    updates['matches/current/teamAPlaying'] = [];
-    updates['matches/current/teamBPlaying'] = [];
-    updates['matches/current/lastUpdated'] = Date.now();
+    updates[`${courtPath}/matchStage`] = 'setup';
+    updates[`${courtPath}/teamAPlaying`] = [];
+    updates[`${courtPath}/teamBPlaying`] = [];
+    updates[`${courtPath}/lastUpdated`] = Date.now();
     
     try {
       await firebase.update(firebase.ref(firebase.database), updates);
@@ -1080,10 +1125,11 @@ const AdminScoring = () => {
     }
     
     setMatchStage('match');
+    const courtPath = getCourtPath();
     const updates = {};
-    updates['matches/current/matchStage'] = 'match';
-    updates['matches/current/isRunning'] = true;
-    updates['matches/current/lastUpdated'] = Date.now();
+    updates[`${courtPath}/matchStage`] = 'match';
+    updates[`${courtPath}/isRunning`] = true;
+    updates[`${courtPath}/lastUpdated`] = Date.now();
     
     // If this match was scheduled, update its status to "live"
     const scheduleId = matchData?.scheduleId;
@@ -1187,10 +1233,13 @@ const AdminScoring = () => {
     // Pause match timer
     await stopTimer();
     
-    // Update timeout count
+    // Update timeout count and save timeout state
+    const courtPath = getCourtPath();
     const updates = {};
-    updates[`matches/current/timeouts/${teamKey}/${qKey}`] = currentTimeouts - 1;
-    updates['matches/current/lastUpdated'] = Date.now();
+    updates[`${courtPath}/timeouts/${teamKey}/${qKey}`] = currentTimeouts - 1;
+    updates[`${courtPath}/timeoutActive`] = true;
+    updates[`${courtPath}/timeoutTeam`] = timeoutTeam;
+    updates[`${courtPath}/lastUpdated`] = Date.now();
     
     try {
       await firebase.update(firebase.ref(firebase.database), updates);
@@ -1224,9 +1273,10 @@ const AdminScoring = () => {
       fouls: 0
     };
 
+    const courtPath = getCourtPath();
     const updates = {};
-    updates[`matches/current/players/${playerId}`] = playerData;
-    updates['matches/current/lastUpdated'] = Date.now();
+    updates[`${courtPath}/players/${playerId}`] = playerData;
+    updates[`${courtPath}/lastUpdated`] = Date.now();
 
     try {
       await firebase.update(firebase.ref(firebase.database), updates);
@@ -1339,10 +1389,27 @@ const AdminScoring = () => {
       }
     });
 
+    // Optimistic update - update UI immediately
+    const optimisticData = {
+      ...matchData,
+      players: {
+        ...matchData.players,
+        [playerId]: { ...player, points: newPoints }
+      }
+    };
+    if (player.team === 'A') {
+      optimisticData.scoreA = teamTotal;
+    } else {
+      optimisticData.scoreB = teamTotal;
+    }
+    prevMatchDataRef.current = optimisticData;
+    setMatchData(optimisticData);
+
+    const courtPath = getCourtPath();
     const updates = {};
-    updates[`matches/current/players/${playerId}/points`] = newPoints;
-    updates[`matches/current/score${player.team.toUpperCase()}`] = teamTotal;
-    updates['matches/current/lastUpdated'] = Date.now();
+    updates[`${courtPath}/players/${playerId}/points`] = newPoints;
+    updates[`${courtPath}/score${player.team.toUpperCase()}`] = teamTotal;
+    updates[`${courtPath}/lastUpdated`] = Date.now();
 
     try {
       await firebase.update(firebase.ref(firebase.database), updates);
@@ -1367,10 +1434,27 @@ const AdminScoring = () => {
       }
     });
 
+    // Optimistic update - update UI immediately
+    const optimisticData = {
+      ...matchData,
+      players: {
+        ...matchData.players,
+        [playerId]: { ...player, points: newPoints }
+      }
+    };
+    if (player.team === 'A') {
+      optimisticData.scoreA = teamTotal;
+    } else {
+      optimisticData.scoreB = teamTotal;
+    }
+    prevMatchDataRef.current = optimisticData;
+    setMatchData(optimisticData);
+
+    const courtPath = getCourtPath();
     const updates = {};
-    updates[`matches/current/players/${playerId}/points`] = newPoints;
-    updates[`matches/current/score${player.team.toUpperCase()}`] = teamTotal;
-    updates['matches/current/lastUpdated'] = Date.now();
+    updates[`${courtPath}/players/${playerId}/points`] = newPoints;
+    updates[`${courtPath}/score${player.team.toUpperCase()}`] = teamTotal;
+    updates[`${courtPath}/lastUpdated`] = Date.now();
 
     try {
       await firebase.update(firebase.ref(firebase.database), updates);
@@ -1384,13 +1468,25 @@ const AdminScoring = () => {
   const updatePlayerFouls = async (playerId, player) => {
     const newFouls = (player.fouls || 0) + 1;
 
+    // Optimistic update - update UI immediately
+    const optimisticData = {
+      ...matchData,
+      players: {
+        ...matchData.players,
+        [playerId]: { ...player, fouls: newFouls }
+      }
+    };
+    prevMatchDataRef.current = optimisticData;
+    setMatchData(optimisticData);
+
+    const courtPath = getCourtPath();
     const updates = {};
-    updates[`matches/current/players/${playerId}/fouls`] = newFouls;
-    updates['matches/current/lastUpdated'] = Date.now();
+    updates[`${courtPath}/players/${playerId}/fouls`] = newFouls;
+    updates[`${courtPath}/lastUpdated`] = Date.now();
     
     // Check for 5 fouls
     if (newFouls >= 5) {
-      updates['matches/current/isRunning'] = false;
+      updates[`${courtPath}/isRunning`] = false;
       
       // Get all players in the team
       const allTeamPlayers = Object.entries(matchData?.players || {})
@@ -1410,10 +1506,10 @@ const AdminScoring = () => {
         
         if (player.team === 'A') {
           setTeamAPlaying(newPlaying);
-          updates['matches/current/teamAPlaying'] = newPlaying;
+          updates[`${courtPath}/teamAPlaying`] = newPlaying;
         } else {
           setTeamBPlaying(newPlaying);
-          updates['matches/current/teamBPlaying'] = newPlaying;
+          updates[`${courtPath}/teamBPlaying`] = newPlaying;
         }
         
         showNotification(`⚠️ ${player.name} has 5 fouls! Auto-substituted with ${substitutePlayer[1].name}`);
@@ -1458,9 +1554,10 @@ const AdminScoring = () => {
   const undoPlayerFoul = async (playerId, player) => {
     const newFouls = Math.max(0, (player.fouls || 0) - 1);
 
+    const courtPath = getCourtPath();
     const updates = {};
-    updates[`matches/current/players/${playerId}/fouls`] = newFouls;
-    updates['matches/current/lastUpdated'] = Date.now();
+    updates[`${courtPath}/players/${playerId}/fouls`] = newFouls;
+    updates[`${courtPath}/lastUpdated`] = Date.now();
 
     try {
       await firebase.update(firebase.ref(firebase.database), updates);
@@ -1687,8 +1784,23 @@ const AdminScoring = () => {
           <div className="login-icon">
             <Lock size={60} />
           </div>
-          <h1>Admin Access</h1>
-          <p>Enter password to access scoring panel</p>
+          <h1>Scoring System Access</h1>
+          <p style={{ marginBottom: '1rem' }}>Enter your password to continue</p>
+          <div style={{ 
+            background: 'rgba(59, 130, 246, 0.1)', 
+            border: '1px solid rgba(59, 130, 246, 0.3)',
+            borderRadius: '8px',
+            padding: '12px',
+            marginBottom: '1rem',
+            fontSize: '13px',
+            textAlign: 'left'
+          }}>
+            <div style={{ fontWeight: '600', marginBottom: '8px', color: '#60a5fa' }}>Available Roles:</div>
+            <div style={{ opacity: 0.9, lineHeight: '1.6' }}>
+              • <strong>Admin:</strong> Full access (schedule, delete, manage players)<br/>
+              • <strong>Scorer 1 & 2:</strong> Scoring only
+            </div>
+          </div>
           {error && (
             <div className="login-error" style={{
               background: 'rgba(239, 68, 68, 0.2)',
@@ -1705,7 +1817,7 @@ const AdminScoring = () => {
           <form onSubmit={handleLogin}>
             <input
               type="password"
-              placeholder="Enter admin password"
+              placeholder="Enter your password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="password-input"
@@ -1723,86 +1835,6 @@ const AdminScoring = () => {
               {5 - loginAttempts} attempts remaining
             </p>
           )}
-        </motion.div>
-      </div>
-    );
-  }
-
-  // Court Selection Screen
-  if (authenticated && !selectedCourt) {
-    return (
-      <div className="admin-login-container">
-        <motion.div
-          className="login-card"
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.5 }}
-          style={{ maxWidth: '500px' }}
-        >
-          <h2 style={{ marginBottom: '1rem', textAlign: 'center' }}>🏀 Select Your Court</h2>
-          <p style={{ textAlign: 'center', opacity: 0.7, marginBottom: '2rem' }}>
-            Choose which court you'll be managing
-          </p>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            {Object.keys(COURT_PASSWORDS).map((court) => (
-              <motion.button
-                key={court}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => {
-                  const password = prompt(`Enter password for ${court}:`);
-                  if (password === COURT_PASSWORDS[court]) {
-                    setSelectedCourt(court);
-                    setCourtPassword(password);
-                    setMatchScheduleData(prev => ({ ...prev, court }));
-                    localStorage.setItem('selectedCourt', court);
-                    localStorage.setItem('courtPassword', password);
-                    showNotification(`Welcome to ${court}!`);
-                  } else if (password) {
-                    showNotification('Incorrect password!');
-                  }
-                }}
-                style={{
-                  padding: '1.5rem',
-                  background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
-                  border: '2px solid rgba(255,255,255,0.1)',
-                  borderRadius: '1rem',
-                  cursor: 'pointer',
-                  color: 'white',
-                  fontSize: '1.1rem',
-                  fontWeight: '700',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between'
-                }}
-              >
-                <span>{court}</span>
-                <span style={{ opacity: 0.5 }}>→</span>
-              </motion.button>
-            ))}
-          </div>
-
-          <button
-            onClick={() => {
-              setAuthenticated(false);
-              localStorage.removeItem('selectedCourt');
-              localStorage.removeItem('courtPassword');
-            }}
-            style={{
-              marginTop: '2rem',
-              width: '100%',
-              padding: '0.75rem',
-              background: 'rgba(239, 68, 68, 0.1)',
-              color: '#ef4444',
-              border: '1px solid rgba(239, 68, 68, 0.3)',
-              borderRadius: '0.5rem',
-              cursor: 'pointer',
-              fontWeight: '600'
-            }}
-          >
-            Logout
-          </button>
         </motion.div>
       </div>
     );
@@ -1831,7 +1863,7 @@ const AdminScoring = () => {
         )}
         
         <div className="admin-header">
-          <h1><Trophy size={32} /> Admin Scoring Panel</h1>
+          <h1><Trophy size={32} /> Scoring Panel {userRole && <span style={{ fontSize: '0.6em', opacity: 0.7 }}>({userRole === 'admin' ? 'Admin' : userRole === 'scorer1' ? 'Scorer 1' : 'Scorer 2'})</span>}</h1>
           <div className="header-actions">
             <button onClick={() => navigate('/')} className="home-btn" style={{
               marginRight: '10px',
@@ -1857,96 +1889,113 @@ const AdminScoring = () => {
         <div className="menu-content">
           <h2>What would you like to do?</h2>
           <div className="menu-options">
-            <motion.button
-              className="menu-option-card"
-              onClick={async () => {
-                // Reset form for new match
-                setIsMatchScheduled(false);
-                setMatchScheduleData({
-                  matchType: 'Boys',
-                  court: selectedCourt,
-                  date: '',
-                  time: '',
-                  roundType: 'Knockout Round'
-                });
-                
-                const updates = {};
-                updates['matches/current/matchStage'] = 'setup';
-                updates['matches/current/teamA'] = '';
-                updates['matches/current/teamB'] = '';
-                updates['matches/current/players'] = {};
-                updates['matches/current/scheduleId'] = null;
-                updates['matches/current/lastUpdated'] = Date.now();
-                await firebase.update(firebase.ref(firebase.database), updates);
-                setMatchStage('setup');
-                showNotification('Starting new match setup...');
-              }}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <div className="menu-icon">📅</div>
-              <h3>Schedule a Match</h3>
-              <p>Set up teams and players for a new match</p>
-            </motion.button>
+            {canScheduleMatches() && (
+              <motion.button
+                className="menu-option-card"
+                onClick={async () => {
+                  // Reset form for new match
+                  setIsMatchScheduled(false);
+                  setMatchScheduleData({
+                    matchType: 'Boys',
+                    court: 'Court A',
+                    date: '',
+                    time: '',
+                    roundType: 'Knockout Round'
+                  });
+                  
+                  const courtPath = getCourtPath();
+                  const updates = {};
+                  updates[`${courtPath}/matchStage`] = 'setup';
+                  updates[`${courtPath}/teamA`] = '';
+                  updates[`${courtPath}/teamB`] = '';
+                  updates[`${courtPath}/players`] = {};
+                  updates[`${courtPath}/scheduleId`] = null;
+                  updates[`${courtPath}/lastUpdated`] = Date.now();
+                  await firebase.update(firebase.ref(firebase.database), updates);
+                  setMatchStage('setup');
+                  showNotification('Starting new match setup...');
+                }}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                <div className="menu-icon">📅</div>
+                <h3>Schedule a Match</h3>
+                <p>Set up teams and players for a new match</p>
+              </motion.button>
+            )}
 
-            <motion.button
-              className="menu-option-card"
-              onClick={async () => {
-                // Check if there's a scheduled match
-                if (!matchData?.players || Object.keys(matchData.players).length === 0) {
-                  showNotification('No scheduled match found. Please schedule a match first.');
-                  return;
-                }
-                const updates = {};
-                updates['matches/current/matchStage'] = 'selectPlaying5';
-                updates['matches/current/lastUpdated'] = Date.now();
-                await firebase.update(firebase.ref(firebase.database), updates);
-                setMatchStage('selectPlaying5');
-                showNotification('Starting match scoring...');
-              }}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <div className="menu-icon">🏀</div>
-              <h3>Start Scoring for Scheduled Match</h3>
-              <p>Begin live scoring for an already scheduled match</p>
-            </motion.button>
+            {isScorer() && (
+              <motion.button
+                className="menu-option-card"
+                onClick={async () => {
+                  // Check if there's a scheduled match
+                  if (!matchData?.players || Object.keys(matchData.players).length === 0) {
+                    showNotification('No scheduled match found. Please ask admin to schedule a match first.');
+                    return;
+                  }
+                  const courtPath = getCourtPath();
+                  const updates = {};
+                  updates[`${courtPath}/matchStage`] = 'selectPlaying5';
+                  updates[`${courtPath}/lastUpdated`] = Date.now();
+                  await firebase.update(firebase.ref(firebase.database), updates);
+                  setMatchStage('selectPlaying5');
+                  showNotification('Starting match scoring...');
+                }}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                <div className="menu-icon">🏀</div>
+                <h3>Start Scoring for Scheduled Match</h3>
+                <p>Begin live scoring for an already scheduled match</p>
+              </motion.button>
+            )}
 
-            <motion.button
-              className="menu-option-card"
-              onClick={() => {
-                setShowPastMatchesModal(true);
-              }}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <div className="menu-icon">📊</div>
-              <h3>View Score of Past Match</h3>
-              <p>Review scores and statistics from previous matches ({pastMatches.length})</p>
-            </motion.button>
+            {canViewPastMatches() && (
+              <motion.button
+                className="menu-option-card"
+                onClick={() => {
+                  setShowPastMatchesModal(true);
+                }}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                <div className="menu-icon">📊</div>
+                <h3>View Past Matches</h3>
+                <p>Review scores and statistics from previous matches ({pastMatches.length})</p>
+              </motion.button>
+            )}
 
-            <motion.button
-              className="menu-option-card"
-              onClick={openDeleteMatchesModal}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              style={{
-                border: '2px solid #ef4444',
-                background: 'rgba(239, 68, 68, 0.1)'
-              }}
-            >
-              <div className="menu-icon">🗑️</div>
-              <h3 style={{ color: '#ef4444' }}>Delete Matches</h3>
-              <p>Select and delete scheduled, live, or finished matches</p>
-            </motion.button>
+            {canDeleteMatches() && (
+              <motion.button
+                className="menu-option-card"
+                onClick={openDeleteMatchesModal}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                style={{
+                  border: '2px solid #ef4444',
+                  background: 'rgba(239, 68, 68, 0.1)'
+                }}
+              >
+                <div className="menu-icon">🗑️</div>
+                <h3 style={{ color: '#ef4444' }}>Delete Matches</h3>
+                <p>Select and delete scheduled, live, or finished matches</p>
+              </motion.button>
+            )}
           </div>
         </div>
       </div>
     );
   }
 
-  // STAGE 1: SETUP - Add all players
+  // STAGE 1: SETUP - Add all players (Admin only)
   if (matchStage === 'setup') {
+    // Scorers cannot access setup stage
+    if (!canManagePlayers()) {
+      showNotification('Only admins can schedule matches and manage players');
+      setMatchStage('menu');
+      return null;
+    }
+    
     return (
       <div className="admin-scoring-container setup-stage dark-theme">
         {notification && (
@@ -2000,117 +2049,43 @@ const AdminScoring = () => {
         </div>
 
         <div className="setup-content">
-          {/* Match Scheduling Form */}
+          {/* Simple Match Setup Form */}
           <div className="match-schedule-form">
-            <h2 className="form-section-title">📅 Schedule Match Details</h2>
-            <div className="schedule-form-grid">
+            <h2 className="form-section-title">🏀 Match Setup</h2>
+            <div className="schedule-form-grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
               <div className="form-group">
-                <label>Team A Name</label>
+                <label>Team A Name *</label>
                 <input
                   type="text"
                   value={matchData?.teamA || ''}
                   onChange={(e) => updateMatchInfo('teamA', e.target.value)}
                   className="form-input"
                   placeholder="e.g., NMIMS Mumbai"
-                  disabled={isMatchScheduled}
                 />
               </div>
               <div className="form-group">
-                <label>Team B Name</label>
+                <label>Team B Name *</label>
                 <input
                   type="text"
                   value={matchData?.teamB || ''}
                   onChange={(e) => updateMatchInfo('teamB', e.target.value)}
                   className="form-input"
                   placeholder="e.g., NMIMS Bangalore"
-                  disabled={isMatchScheduled}
-                />
-              </div>
-              <div className="form-group">
-                <label>Match Type</label>
-                <select
-                  value={matchScheduleData.matchType}
-                  onChange={(e) => setMatchScheduleData({...matchScheduleData, matchType: e.target.value})}
-                  className="form-select"
-                  disabled={isMatchScheduled}
-                >
-                  <option value="Boys">Boys</option>
-                  <option value="Girls">Girls</option>
-                </select>
-              </div>
-              <div className="form-group">
-                <label>Court</label>
-                <select
-                  value={matchScheduleData.court}
-                  onChange={(e) => setMatchScheduleData({...matchScheduleData, court: e.target.value})}
-                  className="form-select"
-                  disabled={isMatchScheduled}
-                >
-                  <option value="Court A">Court A</option>
-                  <option value="Court B">Court B</option>
-                  <option value="Main Court">Main Court</option>
-                  <option value="Court C">Court C</option>
-                </select>
-              </div>
-              <div className="form-group">
-                <label>Round Type</label>
-                <select
-                  value={matchScheduleData.roundType}
-                  onChange={(e) => setMatchScheduleData({...matchScheduleData, roundType: e.target.value})}
-                  className="form-select"
-                  disabled={isMatchScheduled}
-                >
-                  <option value="Knockout Round">Knockout Round</option>
-                  <option value="Quarter Final">Quarter Final</option>
-                  <option value="Semi Final">Semi Final</option>
-                  <option value="Championship Final">Championship Final</option>
-                </select>
-              </div>
-              <div className="form-group">
-                <label>Date</label>
-                <input
-                  type="date"
-                  value={matchScheduleData.date}
-                  onChange={(e) => setMatchScheduleData({...matchScheduleData, date: e.target.value})}
-                  className="form-input"
-                  disabled={isMatchScheduled}
-                />
-              </div>
-              <div className="form-group">
-                <label>Time</label>
-                <input
-                  type="time"
-                  value={matchScheduleData.time}
-                  onChange={(e) => setMatchScheduleData({...matchScheduleData, time: e.target.value})}
-                  className="form-input"
-                  disabled={isMatchScheduled}
                 />
               </div>
             </div>
-            {!isMatchScheduled && (
-              <button onClick={scheduleMatch} className="schedule-match-btn">
-                📅 Schedule Match
-              </button>
-            )}
-            {isMatchScheduled && (
-              <div className="schedule-success-badge">
-                ✅ Match Scheduled Successfully! Now add players below.
-              </div>
-            )}
+            <p style={{ fontSize: '0.9rem', opacity: 0.7, marginTop: '0.5rem' }}>
+              Enter team names above, then add players below
+            </p>
           </div>
 
-          {/* Player Management Section - Only show after scheduling */}
-          {isMatchScheduled && (
-            <>
-              <div className="section-divider"></div>
-              <h2 className="form-section-title">👥 Add Team Players</h2>
-            </>
-          )}
+          {/* Player Management Section */}
+          <div className="section-divider"></div>
+          <h2 className="form-section-title">👥 Add Team Players</h2>
 
-          {/* Excel Upload Section - Only show after scheduling */}
-          {isMatchScheduled && (
-            <>
-              <div className="excel-upload-section">
+          {/* Excel Upload Section */}
+          <>
+            <div className="excel-upload-section">
                 <div className="upload-info">
                   <FileSpreadsheet size={32} />
                   <div>
@@ -2203,15 +2178,24 @@ const AdminScoring = () => {
                   ← Back to Menu
                 </button>
                 <button 
-                  onClick={proceedToSelectPlaying5} 
+                  onClick={async () => {
+                    if (teamAPlayers.length < 5 || teamBPlayers.length < 5) {
+                      showNotification('Each team needs at least 5 players');
+                      return;
+                    }
+                    // Save match and go back to menu
+                    await updateMatchInfo('matchStage', 'menu');
+                    setMatchStage('menu');
+                    showNotification('✅ Match saved! Scorers can now select playing 5 and start scoring.');
+                  }} 
                   className="proceed-btn"
                   disabled={teamAPlayers.length < 5 || teamBPlayers.length < 5}
+                  style={{ background: '#10b981' }}
                 >
-                  Proceed to Select Playing 5 →
+                  <Save size={20} /> Save Match
                 </button>
               </div>
-            </>
-          )}
+          </>
         </div>
 
         {/* Add Player Modal */}
@@ -2340,9 +2324,19 @@ const AdminScoring = () => {
           </div>
 
           <div className="action-buttons-row">
-            <button onClick={goBackToSetup} className="back-btn">
-              ← Back to Setup
-            </button>
+            {canManagePlayers() && (
+              <button onClick={goBackToSetup} className="back-btn">
+                ← Back to Setup
+              </button>
+            )}
+            {!canManagePlayers() && (
+              <button onClick={async () => {
+                await updateMatchInfo('matchStage', 'menu');
+                setMatchStage('menu');
+              }} className="back-btn">
+                ← Back to Menu
+              </button>
+            )}
             <button 
               onClick={startMatchWithPlaying5} 
               className="start-match-btn"
