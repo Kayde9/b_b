@@ -1,0 +1,83 @@
+========================================
+🔐 QUICK START - Environment Setup
+========================================
+
+CRITICAL: You need to create environment files to run the app!
+
+METHOD 1 - Automatic (Recommended for Windows):
+-----------------------------------------------
+Run this PowerShell script:
+    .\create-env-files.ps1
+
+If you get an error about execution policy:
+    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+    .\create-env-files.ps1
+
+
+METHOD 2 - Manual:
+------------------
+1. Create a file named ".env" in the root directory
+2. Copy the content from SECURITY_SETUP.md
+3. Update scoreboard/js/firebase-config.js with actual values
+
+
+VERIFY SETUP:
+-------------
+1. Check git status (these files should NOT appear):
+   git status
+   
+   Expected: .env and firebase-config.js should be ignored
+
+2. Start React app:
+   npm start
+   
+   Expected: App starts without "Missing environment variables" error
+
+3. Open scoreboard:
+   Open scoreboard/index.html in browser
+   
+   Expected: No Firebase configuration errors
+
+
+WHAT WAS FIXED:
+---------------
+✅ Removed hardcoded credentials from source code
+✅ Added environment variable validation
+✅ Secured console logging (dev only)
+✅ Updated .gitignore to protect credentials
+✅ Created setup documentation
+
+
+WHAT YOU NEED TO DO:
+--------------------
+⚠️  Create .env file (use create-env-files.ps1 or manual method)
+⚠️  Update Firebase database rules (see SECURITY_SETUP.md)
+
+
+IMPORTANT SECURITY WARNING:
+---------------------------
+Your Firebase database currently allows ANYONE to write data!
+This is a security risk. Please update your database rules.
+
+See SECURITY_SETUP.md for detailed instructions.
+
+
+FILES TO READ:
+--------------
+- CREDENTIALS_SECURITY_SUMMARY.md - Complete overview
+- SECURITY_SETUP.md - Detailed setup guide
+- create-env-files.ps1 - Automatic setup script
+
+
+NEED HELP?
+----------
+Check the documentation files listed above or refer to:
+https://firebase.google.com/docs/database/security
+https://create-react-app.dev/docs/adding-custom-environment-variables/
+
+
+========================================
+Last Updated: October 30, 2025
+========================================
+
+

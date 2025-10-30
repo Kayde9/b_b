@@ -226,6 +226,7 @@ const MatchPanel = ({ match, isLive, getTeamInitials }) => {
 const DetailedMatchModal = ({ match, onClose }) => {
   const [matchDetails, setMatchDetails] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [selectedTeam, setSelectedTeam] = useState('A');
 
   useEffect(() => {
     const fetchMatchDetails = async () => {
@@ -293,6 +294,46 @@ const DetailedMatchModal = ({ match, onClose }) => {
               </div>
             </div>
 
+            {/* Player Statistics with Team Dropdown */}
+            <div className="player-statistics-single">
+              <div className="team-selector">
+                <h4 className="stats-section-title">Player Statistics</h4>
+                <select 
+                  className="team-dropdown"
+                  value={selectedTeam}
+                  onChange={(e) => setSelectedTeam(e.target.value)}
+                >
+                  <option value="A">{match.teamA}</option>
+                  <option value="B">{match.teamB}</option>
+                </select>
+              </div>
+
+              <div className="players-table-container">
+                <table className="players-table">
+                  <thead>
+                    <tr>
+                      <th>Player</th>
+                      <th>Points</th>
+                      <th>Fouls</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {getPlayersByTeam(selectedTeam).length > 0 ? (
+                      getPlayersByTeam(selectedTeam).map(([id, player]) => (
+                        <tr key={id}>
+                          <td className="player-name">{player.name || 'Player'}</td>
+                          <td className="points-cell">{player.points || 0}</td>
+                          <td className="fouls-cell">{player.fouls || 0}</td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr><td colSpan="3" className="no-data">No player data</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
             {/* Quarter Breakdown */}
             {matchDetails?.quarterScores && (
               <div className="quarter-breakdown">
@@ -329,61 +370,6 @@ const DetailedMatchModal = ({ match, onClose }) => {
                 </table>
               </div>
             )}
-
-            {/* Player Statistics */}
-            <div className="player-statistics">
-              <div className="team-stats-section">
-                <h4 className="stats-team-title">{match.teamA} Players</h4>
-                <table className="players-table">
-                  <thead>
-                    <tr>
-                      <th>Player</th>
-                      <th>Points</th>
-                      <th>Fouls</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {getPlayersByTeam('A').length > 0 ? (
-                      getPlayersByTeam('A').map(([id, player]) => (
-                        <tr key={id}>
-                          <td>{player.name || 'Player'}</td>
-                          <td className="points-cell">{player.points || 0}</td>
-                          <td className="fouls-cell">{player.fouls || 0}</td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr><td colSpan="3" className="no-data">No player data</td></tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="team-stats-section">
-                <h4 className="stats-team-title">{match.teamB} Players</h4>
-                <table className="players-table">
-                  <thead>
-                    <tr>
-                      <th>Player</th>
-                      <th>Points</th>
-                      <th>Fouls</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {getPlayersByTeam('B').length > 0 ? (
-                      getPlayersByTeam('B').map(([id, player]) => (
-                        <tr key={id}>
-                          <td>{player.name || 'Player'}</td>
-                          <td className="points-cell">{player.points || 0}</td>
-                          <td className="fouls-cell">{player.fouls || 0}</td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr><td colSpan="3" className="no-data">No player data</td></tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
           </div>
         )}
       </motion.div>

@@ -23,6 +23,24 @@ let firebaseAuth = null;
 let firebaseInitialized = false;
 let authInitialized = false;
 
+// Validate that all required environment variables are present
+const requiredEnvVars = [
+  'REACT_APP_FIREBASE_API_KEY',
+  'REACT_APP_FIREBASE_AUTH_DOMAIN',
+  'REACT_APP_FIREBASE_DATABASE_URL',
+  'REACT_APP_FIREBASE_PROJECT_ID',
+  'REACT_APP_FIREBASE_STORAGE_BUCKET',
+  'REACT_APP_FIREBASE_MESSAGING_SENDER_ID',
+  'REACT_APP_FIREBASE_APP_ID'
+];
+
+const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
+if (missingVars.length > 0) {
+  console.error('❌ Missing required environment variables:', missingVars);
+  console.error('Please create a .env file in the root directory with all required Firebase configuration variables.');
+  throw new Error(`Missing required environment variables: ${missingVars.join(', ')}`);
+}
+
 const firebaseConfig = {
   apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
   authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN,
@@ -34,15 +52,15 @@ const firebaseConfig = {
   measurementId: process.env.REACT_APP_FIREBASE_MEASUREMENT_ID
 };
 
-// Debug: Log config to help diagnose issues (remove in production)
-console.log('🔍 Firebase Config Check:', {
-  hasApiKey: !!firebaseConfig.apiKey,
-  hasAuthDomain: !!firebaseConfig.authDomain,
-  hasDatabaseURL: !!firebaseConfig.databaseURL,
-  hasProjectId: !!firebaseConfig.projectId,
-  databaseURL: firebaseConfig.databaseURL,
-  projectId: firebaseConfig.projectId
-});
+// Debug: Log config to help diagnose issues (only in development)
+if (process.env.NODE_ENV === 'development') {
+  console.log('🔍 Firebase Config Check:', {
+    hasApiKey: !!firebaseConfig.apiKey,
+    hasAuthDomain: !!firebaseConfig.authDomain,
+    hasDatabaseURL: !!firebaseConfig.databaseURL,
+    hasProjectId: !!firebaseConfig.projectId
+  });
+}
 
 // Initialize Firebase only once
 export const initializeFirebase = async () => {

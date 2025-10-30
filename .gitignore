@@ -17,6 +17,12 @@
 .env.test.local
 .env.production.local
 
+# Firebase configuration files (contains sensitive credentials)
+scoreboard/js/firebase-config.js
+
+# Firebase deployment
+.firebase/
+
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

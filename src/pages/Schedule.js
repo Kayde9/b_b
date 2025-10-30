@@ -229,12 +229,28 @@ const Schedule = () => {
             viewport={{ once: true }}
             transition={{ delay: 0.2, duration: 0.5 }}
           >
-                        <div className="info-icon">
+            <div className="info-icon">
               <Trophy size={40} />
             </div>
             <h3 className="info-title">Semi Finals</h3>
             <p className="info-description">
               Day 2 morning brings intense semi-finals for both boys and girls tournaments. The final four battle for championship spots!
+            </p>
+          </motion.div>
+
+          <motion.div
+            className="info-card glass-card"
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ delay: 0.4, duration: 0.5 }}
+          >
+            <div className="info-icon">
+              <Trophy size={40} />
+            </div>
+            <h3 className="info-title">Finals</h3>
+            <p className="info-description">
+              Day 2 evening concludes with the championship finals. Witness the ultimate showdown as the best teams compete for the Inter-NMIMS Basketball Championship trophy!
             </p>
           </motion.div>
         </div>
@@ -363,7 +379,7 @@ const Schedule = () => {
               ) : (
                 <div className="players-section">
                   <p style={{color: '#9ca3af', textAlign: 'center', padding: '2rem'}}>
-                    No players found for this match. Players need to be added in the Match Scheduler.
+                    No players found for this match.
                   </p>
                 </div>
               )}

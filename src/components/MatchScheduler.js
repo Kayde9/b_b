@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Calendar, Users, Edit2, Trash2, Plus, X, LogOut, Upload, Download } from 'lucide-react';
-import { getFirestoreUtils, generateMatchId } from '../firebase';
+import { getFirestoreUtils, generateMatchId, getFirebaseDatabase } from '../firebase';
 import * as XLSX from 'xlsx';
 import './MatchScheduler.css';
 
@@ -25,7 +25,9 @@ const MatchScheduler = () => {
     teamB: '',
     date: '',
     time: '',
-    venue: ''
+    venue: '',
+    matchType: 'Knockout',
+    gender: 'Boys'
   });
   
   const [players, setPlayers] = useState([]);
@@ -103,7 +105,7 @@ const MatchScheduler = () => {
       }
 
       // Reset form
-      setMatchForm({ teamA: '', teamB: '', date: '', time: '', venue: '' });
+      setMatchForm({ teamA: '', teamB: '', date: '', time: '', venue: '', matchType: 'Knockout', gender: 'Boys' });
       setShowScheduleForm(false);
       setEditingMatch(null);
       loadMatches();
@@ -169,24 +171,73 @@ const MatchScheduler = () => {
   };
 
   const handleDeleteMatch = async (matchId) => {
-    if (!window.confirm('Are you sure you want to delete this match?')) return;
+    if (!window.confirm('Are you sure you want to delete this match? This will also remove it from the live scoreboard if it exists there.')) return;
     
     try {
       const { firestore, doc, deleteDoc, collection, query, where, getDocs } = await getFirestoreUtils();
       
-      // Delete match
+      // Get match data before deleting
+      const match = matches.find(m => m.id === matchId);
+      
+      // Delete match from Firestore
       await deleteDoc(doc(firestore, 'scheduledMatches', matchId));
       
-      // Delete associated players
-      const playersRef = collection(firestore, 'players');
-      const match = matches.find(m => m.id === matchId);
+      // Delete associated players from Firestore
       if (match) {
+        const playersRef = collection(firestore, 'players');
         const q = query(playersRef, where('matchId', '==', match.matchId));
         const snapshot = await getDocs(q);
         const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
         await Promise.all(deletePromises);
+        
+        // Also delete from Realtime Database if it exists there
+        try {
+          const { database, ref, get, set } = await getFirebaseDatabase();
+          
+          // Check if this match is the current live match
+          const currentMatchRef = ref(database, 'matches/current');
+          const currentSnapshot = await get(currentMatchRef);
+          const currentMatch = currentSnapshot.val();
+          
+          // If the deleted match is currently live, clear it
+          if (currentMatch && (
+            (currentMatch.teamA === match.teamA && currentMatch.teamB === match.teamB) ||
+            currentMatch.matchId === match.matchId
+          )) {
+            await set(currentMatchRef, null);
+            console.log('Removed match from live scoreboard (current)');
+          }
+          
+          // Check and remove from completed matches
+          const completedRef = ref(database, 'matches/completed');
+          const completedSnapshot = await get(completedRef);
+          const completedMatches = completedSnapshot.val();
+          
+          if (completedMatches) {
+            // Find and remove any completed match that matches this one
+            const updatesToRemove = {};
+            Object.entries(completedMatches).forEach(([key, completedMatch]) => {
+              if (
+                (completedMatch.teamA === match.teamA && completedMatch.teamB === match.teamB) ||
+                completedMatch.matchId === match.matchId
+              ) {
+                updatesToRemove[`matches/completed/${key}`] = null;
+              }
+            });
+            
+            if (Object.keys(updatesToRemove).length > 0) {
+              const { update } = await getFirebaseDatabase();
+              await update(ref(database), updatesToRemove);
+              console.log('Removed match from completed matches in Realtime Database');
+            }
+          }
+        } catch (realtimeError) {
+          console.warn('Error removing from Realtime Database:', realtimeError);
+          // Continue anyway - Firestore deletion succeeded
+        }
       }
       
+      alert('Match deleted successfully!');
       loadMatches();
     } catch (error) {
       console.error('Error deleting match:', error);
@@ -201,7 +252,9 @@ const MatchScheduler = () => {
       teamB: match.teamB,
       date: match.date,
       time: match.time,
-      venue: match.venue
+      venue: match.venue,
+      matchType: match.matchType || 'Knockout',
+      gender: match.gender || 'Boys'
     });
     setShowScheduleForm(true);
   };
@@ -331,7 +384,7 @@ const MatchScheduler = () => {
           onClick={() => {
             setShowScheduleForm(true);
             setEditingMatch(null);
-            setMatchForm({ teamA: '', teamB: '', date: '', time: '', venue: '' });
+            setMatchForm({ teamA: '', teamB: '', date: '', time: '', venue: '', matchType: 'Knockout', gender: 'Boys' });
           }}
         >
           <Plus size={20} />
@@ -387,6 +440,31 @@ const MatchScheduler = () => {
                 <div className="detail-item">
                   <span>📍 {match.venue}</span>
                 </div>
+                {(match.matchType || match.gender) && (
+                  <div className="detail-item">
+                    <span style={{ 
+                      backgroundColor: match.matchType === 'Finals' ? '#ef4444' : match.matchType === 'Semi Final' ? '#f59e0b' : '#10b981',
+                      color: 'white',
+                      padding: '0.25rem 0.75rem',
+                      borderRadius: '0.375rem',
+                      fontSize: '0.875rem',
+                      fontWeight: '600',
+                      marginRight: '0.5rem'
+                    }}>
+                      {match.matchType || 'Knockout'}
+                    </span>
+                    <span style={{ 
+                      backgroundColor: match.gender === 'Girls' ? '#ec4899' : '#3b82f6',
+                      color: 'white',
+                      padding: '0.25rem 0.75rem',
+                      borderRadius: '0.375rem',
+                      fontSize: '0.875rem',
+                      fontWeight: '600'
+                    }}>
+                      {match.gender || 'Boys'}
+                    </span>
+                  </div>
+                )}
                 <div className="detail-item">
                   <span className="match-id">Match ID: {match.matchId}</span>
                 </div>
@@ -501,6 +579,49 @@ const MatchScheduler = () => {
                     required
                     placeholder="Enter venue"
                   />
+                </div>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Match Type</label>
+                    <select
+                      value={matchForm.matchType}
+                      onChange={(e) => setMatchForm({ ...matchForm, matchType: e.target.value })}
+                      required
+                      style={{
+                        padding: '0.75rem',
+                        borderRadius: '0.5rem',
+                        border: '1px solid #374151',
+                        backgroundColor: '#1f2937',
+                        color: 'white',
+                        fontSize: '1rem',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <option value="Knockout">Knockout</option>
+                      <option value="Semi Final">Semi Final</option>
+                      <option value="Finals">Finals</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Gender Category</label>
+                    <select
+                      value={matchForm.gender}
+                      onChange={(e) => setMatchForm({ ...matchForm, gender: e.target.value })}
+                      required
+                      style={{
+                        padding: '0.75rem',
+                        borderRadius: '0.5rem',
+                        border: '1px solid #374151',
+                        backgroundColor: '#1f2937',
+                        color: 'white',
+                        fontSize: '1rem',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <option value="Boys">Boys</option>
+                      <option value="Girls">Girls</option>
+                    </select>
+                  </div>
                 </div>
                 <div className="form-actions">
                   <button type="button" className="cancel-btn" onClick={() => setShowScheduleForm(false)}>

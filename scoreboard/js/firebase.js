@@ -2,18 +2,14 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js';
 import { getDatabase, ref, onValue, set, update, push } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js';
+import { firebaseConfig } from './firebase-config.js';
 
-// Firebase configuration
-const firebaseConfig = {
-  apiKey: "AIzaSyAWCSuJ4CFUy_mIiVJSECc8hGZok3yfWnY",
-  authDomain: "internmimsbasketball.firebaseapp.com",
-  databaseURL: "https://internmimsbasketball-default-rtdb.firebaseio.com",
-  projectId: "internmimsbasketball",
-  storageBucket: "internmimsbasketball.firebasestorage.app",
-  messagingSenderId: "97822648007",
-  appId: "1:97822648007:web:cfc93e3a6fb8233c6c40e2",
-  measurementId: "G-KM2NGQ30TJ"
-};
+// Validate configuration
+if (!firebaseConfig || !firebaseConfig.apiKey || firebaseConfig.apiKey === "YOUR_API_KEY_HERE") {
+  console.error('❌ Firebase configuration is missing or incomplete!');
+  console.error('Please copy firebase-config.example.js to firebase-config.js and add your credentials.');
+  throw new Error('Firebase configuration not found. Please set up firebase-config.js');
+}
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);

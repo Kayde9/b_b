@@ -17,6 +17,7 @@ const Gallery = lazy(() => import('./pages/Gallery'));
 const Contact = lazy(() => import('./pages/Contact'));
 const MatchScheduler = lazy(() => import('./components/MatchScheduler'));
 const ScorerPortal = lazy(() => import('./components/ScorerPortal'));
+const AdminCleanup = lazy(() => import('./pages/AdminCleanup'));
 
 function App() {
   const [loading, setLoading] = useState(true);
@@ -56,6 +57,7 @@ function App() {
               {/* Admin routes without navbar/footer */}
               <Route path="/match-scheduler" element={<MatchScheduler />} />
               <Route path="/scorer-portal" element={<ScorerPortal />} />
+              <Route path="/admin-cleanup" element={<AdminCleanup />} />
         
               {/* Regular routes with navbar/footer */}
               <Route path="/" element={

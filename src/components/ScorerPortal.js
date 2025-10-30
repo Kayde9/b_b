@@ -545,7 +545,7 @@ const ScorerPortal = () => {
       if (!matchSnapshot.empty) {
         const matchDoc = matchSnapshot.docs[0];
         
-        // Update match with final scores and status
+        // Update match with final scores and status in Firestore
         await updateDoc(doc(firestore, 'scheduledMatches', matchDoc.id), {
           status: 'completed',
           finalScore: {
@@ -557,6 +557,56 @@ const ScorerPortal = () => {
           winner: score.teamA > score.teamB ? matchInfo.teamA : score.teamB > score.teamA ? matchInfo.teamB : 'Tie',
           playerStats: playerStats
         });
+        
+        // Also save to Realtime Database for the live scoreboard
+        try {
+          const { database, ref, set } = await getFirebaseDatabase();
+          
+          // Prepare completed match data
+          const completedMatchData = {
+            matchId: matchInfo.matchId,
+            teamA: matchInfo.teamA,
+            teamB: matchInfo.teamB,
+            scoreA: score.teamA,
+            scoreB: score.teamB,
+            finalScoreA: score.teamA,
+            finalScoreB: score.teamB,
+            quarterScores: quarterScores,
+            completedAt: Date.now(),
+            date: matchInfo.date,
+            venue: matchInfo.venue,
+            winner: score.teamA > score.teamB ? matchInfo.teamA : score.teamB > score.teamA ? matchInfo.teamB : 'Tie',
+            matchStage: 'finished'
+          };
+          
+          // Add players data
+          const playersObj = {};
+          [...selectedPlayers.teamA, ...selectedPlayers.teamB].forEach(playerId => {
+            const player = allPlayers.find(p => p.id === playerId);
+            if (player) {
+              playersObj[playerId] = {
+                name: player.playerName,
+                jersey: player.jerseyNumber,
+                team: player.team,
+                points: playerStats[playerId]?.points || 0,
+                fouls: playerStats[playerId]?.fouls || 0
+              };
+            }
+          });
+          completedMatchData.players = playersObj;
+          
+          // Save to completed matches
+          const completedKey = `match_${matchInfo.matchId}_${Date.now()}`;
+          await set(ref(database, `matches/completed/${completedKey}`), completedMatchData);
+          
+          // Clear current match
+          await set(ref(database, 'matches/current'), null);
+          
+          console.log('Match saved to Realtime Database completed matches');
+        } catch (realtimeError) {
+          console.error('Error saving to Realtime Database:', realtimeError);
+          // Continue anyway - Firestore save succeeded
+        }
         
         alert('Match completed and saved successfully!');
         navigate('/schedule');
