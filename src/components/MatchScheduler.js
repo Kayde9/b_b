@@ -179,69 +179,84 @@ const MatchScheduler = () => {
       // Get match data before deleting
       const match = matches.find(m => m.id === matchId);
       
-      // Delete match from Firestore
-      await deleteDoc(doc(firestore, 'scheduledMatches', matchId));
+      if (!match) {
+        alert('Match not found');
+        return;
+      }
+
+      console.log('Deleting match:', match);
       
-      // Delete associated players from Firestore
-      if (match) {
-        const playersRef = collection(firestore, 'players');
-        const q = query(playersRef, where('matchId', '==', match.matchId));
-        const snapshot = await getDocs(q);
-        const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
-        await Promise.all(deletePromises);
+      // Delete from Realtime Database FIRST (before Firestore)
+      try {
+        const { database, ref, get, set, update } = await getFirebaseDatabase();
         
-        // Also delete from Realtime Database if it exists there
-        try {
-          const { database, ref, get, set } = await getFirebaseDatabase();
-          
-          // Check if this match is the current live match
-          const currentMatchRef = ref(database, 'matches/current');
-          const currentSnapshot = await get(currentMatchRef);
-          const currentMatch = currentSnapshot.val();
-          
-          // If the deleted match is currently live, clear it
-          if (currentMatch && (
+        // Check if this match is the current live match
+        const currentMatchRef = ref(database, 'matches/current');
+        const currentSnapshot = await get(currentMatchRef);
+        const currentMatch = currentSnapshot.val();
+        
+        console.log('Current live match:', currentMatch);
+        
+        // If the deleted match is currently live, clear it
+        if (currentMatch) {
+          const isCurrentMatch = 
+            currentMatch.matchId === match.matchId ||
             (currentMatch.teamA === match.teamA && currentMatch.teamB === match.teamB) ||
-            currentMatch.matchId === match.matchId
-          )) {
+            (currentMatch.teamA?.toLowerCase().includes(match.teamA?.toLowerCase()) && 
+             currentMatch.teamB?.toLowerCase().includes(match.teamB?.toLowerCase()));
+          
+          if (isCurrentMatch) {
+            console.log('Removing from live scoreboard...');
             await set(currentMatchRef, null);
-            console.log('Removed match from live scoreboard (current)');
+            console.log('✅ Removed match from live scoreboard');
           }
-          
-          // Check and remove from completed matches
-          const completedRef = ref(database, 'matches/completed');
-          const completedSnapshot = await get(completedRef);
-          const completedMatches = completedSnapshot.val();
-          
-          if (completedMatches) {
-            // Find and remove any completed match that matches this one
-            const updatesToRemove = {};
-            Object.entries(completedMatches).forEach(([key, completedMatch]) => {
-              if (
-                (completedMatch.teamA === match.teamA && completedMatch.teamB === match.teamB) ||
-                completedMatch.matchId === match.matchId
-              ) {
-                updatesToRemove[`matches/completed/${key}`] = null;
-              }
-            });
-            
-            if (Object.keys(updatesToRemove).length > 0) {
-              const { update } = await getFirebaseDatabase();
-              await update(ref(database), updatesToRemove);
-              console.log('Removed match from completed matches in Realtime Database');
-            }
-          }
-        } catch (realtimeError) {
-          console.warn('Error removing from Realtime Database:', realtimeError);
-          // Continue anyway - Firestore deletion succeeded
         }
+        
+        // Check and remove from completed matches
+        const completedRef = ref(database, 'matches/completed');
+        const completedSnapshot = await get(completedRef);
+        const completedMatches = completedSnapshot.val();
+        
+        if (completedMatches) {
+          const updatesToRemove = {};
+          Object.entries(completedMatches).forEach(([key, completedMatch]) => {
+            const isMatch = 
+              completedMatch.matchId === match.matchId ||
+              (completedMatch.teamA === match.teamA && completedMatch.teamB === match.teamB);
+            
+            if (isMatch) {
+              updatesToRemove[`matches/completed/${key}`] = null;
+              console.log('Marking completed match for removal:', key);
+            }
+          });
+          
+          if (Object.keys(updatesToRemove).length > 0) {
+            await update(ref(database), updatesToRemove);
+            console.log('✅ Removed from completed matches');
+          }
+        }
+      } catch (realtimeError) {
+        console.error('Error removing from Realtime Database:', realtimeError);
+        alert('Warning: Could not remove from live scoreboard. Error: ' + realtimeError.message);
       }
       
-      alert('Match deleted successfully!');
+      // Delete associated players from Firestore
+      const playersRef = collection(firestore, 'players');
+      const q = query(playersRef, where('matchId', '==', match.matchId));
+      const snapshot = await getDocs(q);
+      const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
+      await Promise.all(deletePromises);
+      console.log(`✅ Deleted ${deletePromises.length} players`);
+      
+      // Delete match from Firestore
+      await deleteDoc(doc(firestore, 'scheduledMatches', matchId));
+      console.log('✅ Deleted match from Firestore');
+      
+      alert('Match deleted successfully from all locations!');
       loadMatches();
     } catch (error) {
       console.error('Error deleting match:', error);
-      alert('Failed to delete match. Please try again.');
+      alert('Failed to delete match. Error: ' + error.message);
     }
   };
 

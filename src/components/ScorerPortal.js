@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Play, Pause, RotateCcw, Plus, Minus, Users, Trophy, 
-  Clock, LogOut, Home, AlertTriangle, RefreshCw, Calendar, MapPin
+  Clock, LogOut, Home, AlertTriangle, RefreshCw, Calendar, MapPin, ArrowLeftRight, X as XIcon
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { getFirestoreUtils, getFirebaseDatabase } from '../firebase';
@@ -29,12 +29,27 @@ const ScorerPortal = () => {
   const [score, setScore] = useState({ teamA: 0, teamB: 0 });
   const [quarter, setQuarter] = useState(1);
   const [timerSeconds, setTimerSeconds] = useState(600); // 10 minutes
+  const [quarterDuration, setQuarterDuration] = useState(600); // Default 10 minutes
   const [isRunning, setIsRunning] = useState(false);
   const [quarterScores, setQuarterScores] = useState({
     q1: { teamA: 0, teamB: 0 },
     q2: { teamA: 0, teamB: 0 },
     q3: { teamA: 0, teamB: 0 },
     q4: { teamA: 0, teamB: 0 }
+  });
+  
+  // Timer editor
+  const [showTimerEditor, setShowTimerEditor] = useState(false);
+  const [editedMinutes, setEditedMinutes] = useState(10);
+  
+  // End match modal
+  const [showEndMatchModal, setShowEndMatchModal] = useState(false);
+  const [selectedWinner, setSelectedWinner] = useState(null);
+  
+  // Team fouls tracking (resets each quarter, max 5 per quarter per team)
+  const [teamFouls, setTeamFouls] = useState({
+    teamA: { q1: 0, q2: 0, q3: 0, q4: 0, q5: 0 },
+    teamB: { q1: 0, q2: 0, q3: 0, q4: 0, q5: 0 }
   });
   
   // Player stats and management
@@ -65,6 +80,19 @@ const ScorerPortal = () => {
   const [firebase, setFirebase] = useState(null);
   const timerIntervalRef = useRef(null);
   
+  // Logout confirmation
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  
+  // Side switch - swap Team A and Team B positions
+  const [sidesSwapped, setSidesSwapped] = useState(false);
+  
+  // Score delay feature
+  const [scoreDelay, setScoreDelay] = useState(3000); // 3 seconds default delay
+  const [pendingScoreUpdate, setPendingScoreUpdate] = useState(null);
+  const [delayTimer, setDelayTimer] = useState(null);
+  const delayTimerRef = useRef(null);
+  const delayIntervalRef = useRef(null);
+  
   const SCORER_PASSWORD = process.env.REACT_APP_SCORER_PASSWORD || 'scorer2025';
 
   // Initialize Firebase
@@ -79,6 +107,60 @@ const ScorerPortal = () => {
     };
     initFirebase();
   }, []);
+
+  // Save match state to localStorage for recovery
+  useEffect(() => {
+    if (matchId && stage === 'playing' && matchInfo) {
+      const matchState = {
+        matchId,
+        matchInfo,
+        selectedPlayers,
+        score,
+        quarter,
+        timerSeconds,
+        quarterScores,
+        playerStats,
+        disqualifiedPlayers,
+        teamFouls,
+        timeouts,
+        timestamp: Date.now()
+      };
+      localStorage.setItem(`match_state_${matchId}`, JSON.stringify(matchState));
+    }
+  }, [matchId, stage, matchInfo, selectedPlayers, score, quarter, timerSeconds, quarterScores, playerStats, disqualifiedPlayers, teamFouls, timeouts]);
+
+  // Load saved match state on mount
+  useEffect(() => {
+    if (matchId && authenticated && matchInfo && stage === 'select') {
+      const savedState = localStorage.getItem(`match_state_${matchId}`);
+      if (savedState) {
+        try {
+          const state = JSON.parse(savedState);
+          // Check if state is recent (within last 24 hours)
+          const isRecent = Date.now() - state.timestamp < 24 * 60 * 60 * 1000;
+          
+          if (isRecent && window.confirm('Found a saved match in progress. Do you want to resume?')) {
+            setSelectedPlayers(state.selectedPlayers);
+            setScore(state.score);
+            setQuarter(state.quarter);
+            setTimerSeconds(state.timerSeconds);
+            setQuarterScores(state.quarterScores);
+            setPlayerStats(state.playerStats);
+            setDisqualifiedPlayers(state.disqualifiedPlayers || []);
+            setTeamFouls(state.teamFouls || { teamA: { q1: 0, q2: 0, q3: 0, q4: 0, q5: 0 }, teamB: { q1: 0, q2: 0, q3: 0, q4: 0, q5: 0 } });
+            setTimeouts(state.timeouts);
+            setStage('playing');
+            showNotification('Match resumed from saved state!');
+          } else if (!isRecent) {
+            localStorage.removeItem(`match_state_${matchId}`);
+          }
+        } catch (error) {
+          console.error('Error loading saved match state:', error);
+          localStorage.removeItem(`match_state_${matchId}`);
+        }
+      }
+    }
+  }, [matchId, authenticated, matchInfo]);
 
   // Load match from URL
   useEffect(() => {
@@ -208,17 +290,20 @@ const ScorerPortal = () => {
     }
   }, [timeoutActive, timeoutTimer]);
 
-  // Sync to Firebase Realtime Database
+  // Sync to Firebase Realtime Database (non-score updates sync immediately)
   useEffect(() => {
     if (firebase && matchInfo && stage === 'playing') {
       const syncToFirebase = async () => {
         const updates = {};
         const path = 'matches/current';
         
-        updates[`${path}/teamA`] = matchInfo.teamA;
-        updates[`${path}/teamB`] = matchInfo.teamB;
-        updates[`${path}/scoreA`] = score.teamA;
-        updates[`${path}/scoreB`] = score.teamB;
+        // Use swapped teams if sides are swapped
+        const displayTeamA = sidesSwapped ? matchInfo.teamB : matchInfo.teamA;
+        const displayTeamB = sidesSwapped ? matchInfo.teamA : matchInfo.teamB;
+        
+        updates[`${path}/teamA`] = displayTeamA;
+        updates[`${path}/teamB`] = displayTeamB;
+        // Scores are handled separately with delay
         updates[`${path}/quarter`] = quarter;
         updates[`${path}/timerSeconds`] = timerSeconds;
         updates[`${path}/isRunning`] = isRunning;
@@ -251,7 +336,91 @@ const ScorerPortal = () => {
       
       syncToFirebase();
     }
-  }, [score, quarter, timerSeconds, isRunning, playerStats, firebase, matchInfo, stage]);
+  }, [quarter, timerSeconds, isRunning, playerStats, firebase, matchInfo, stage, sidesSwapped]);
+
+  // Score sync with delay
+  useEffect(() => {
+    if (firebase && matchInfo && stage === 'playing') {
+      // Clear any existing timer and interval
+      if (delayTimerRef.current) {
+        clearTimeout(delayTimerRef.current);
+        delayTimerRef.current = null;
+      }
+      
+      // Clear existing interval
+      if (delayIntervalRef.current) {
+        clearInterval(delayIntervalRef.current);
+      }
+      
+      // Set pending update
+      const pendingUpdate = {
+        scoreA: sidesSwapped ? score.teamB : score.teamA,
+        scoreB: sidesSwapped ? score.teamA : score.teamB,
+        timestamp: Date.now()
+      };
+      setPendingScoreUpdate(pendingUpdate);
+      
+      // Start countdown
+      let timeRemaining = scoreDelay / 1000; // Convert to seconds
+      setDelayTimer(Math.ceil(timeRemaining));
+      
+      delayIntervalRef.current = setInterval(() => {
+        timeRemaining -= 0.1;
+        if (timeRemaining > 0) {
+          setDelayTimer(Math.ceil(timeRemaining));
+        } else {
+          if (delayIntervalRef.current) {
+            clearInterval(delayIntervalRef.current);
+            delayIntervalRef.current = null;
+          }
+        }
+      }, 100);
+      
+      // Set timeout to sync after delay
+      delayTimerRef.current = setTimeout(async () => {
+        const updates = {};
+        const path = 'matches/current';
+        updates[`${path}/scoreA`] = pendingUpdate.scoreA;
+        updates[`${path}/scoreB`] = pendingUpdate.scoreB;
+        updates[`${path}/lastUpdated`] = Date.now();
+        
+        try {
+          await firebase.update(firebase.ref(firebase.database), updates);
+          setPendingScoreUpdate(null);
+          setDelayTimer(null);
+        } catch (error) {
+          console.error('Firebase score sync error:', error);
+        }
+        if (delayIntervalRef.current) {
+          clearInterval(delayIntervalRef.current);
+          delayIntervalRef.current = null;
+        }
+      }, scoreDelay);
+      
+      return () => {
+        if (delayTimerRef.current) {
+          clearTimeout(delayTimerRef.current);
+          delayTimerRef.current = null;
+        }
+        if (delayIntervalRef.current) {
+          clearInterval(delayIntervalRef.current);
+          delayIntervalRef.current = null;
+        }
+      };
+    }
+  }, [score, firebase, matchInfo, stage, scoreDelay, sidesSwapped]);
+  
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (delayTimerRef.current) {
+        clearTimeout(delayTimerRef.current);
+      }
+      if (delayIntervalRef.current) {
+        clearInterval(delayIntervalRef.current);
+      }
+    };
+  }, []);
 
   const handleLogin = (e) => {
     e.preventDefault();
@@ -265,13 +434,49 @@ const ScorerPortal = () => {
   };
 
   const handleLogout = () => {
+    // Show confirmation if match is in progress
+    if (stage === 'playing' && matchId) {
+      setShowLogoutConfirm(true);
+    } else {
+      confirmLogout();
+    }
+  };
+
+  const confirmLogout = () => {
+    // Match state is auto-saved, so we can safely logout
     setAuthenticated(false);
+    setShowLogoutConfirm(false);
     navigate('/schedule');
+  };
+
+  const cancelLogout = () => {
+    setShowLogoutConfirm(false);
   };
 
   const showNotification = (message) => {
     setNotification(message);
     setTimeout(() => setNotification(''), 3000);
+  };
+
+  const handleSwitchSides = () => {
+    const newSwapped = !sidesSwapped;
+    setSidesSwapped(newSwapped);
+    const newLeftTeam = newSwapped ? matchInfo.teamB : matchInfo.teamA;
+    showNotification(`Teams switched! ${newLeftTeam} is now on the left.`);
+  };
+
+  const cancelPendingScoreUpdate = () => {
+    if (delayTimerRef.current) {
+      clearTimeout(delayTimerRef.current);
+      delayTimerRef.current = null;
+    }
+    if (delayIntervalRef.current) {
+      clearInterval(delayIntervalRef.current);
+      delayIntervalRef.current = null;
+    }
+    setPendingScoreUpdate(null);
+    setDelayTimer(null);
+    showNotification('Pending score update cancelled');
   };
 
   const togglePlayerSelection = (team, playerId) => {
@@ -417,27 +622,43 @@ const ScorerPortal = () => {
     
     const player = allPlayers.find(p => p.id === playerId);
     
-    if (currentFouls >= 5) {
-      // Disqualify player
-      setDisqualifiedPlayers(prev => [...prev, playerId]);
+    // Update team fouls automatically
+    if (player) {
+      const teamKey = player.team === 'A' ? 'teamA' : 'teamB';
+      const quarterKey = quarter <= 5 ? `q${quarter}` : 'q5';
       
-      // Remove from selected players
-      if (player) {
-        const teamKey = player.team === 'A' ? 'teamA' : 'teamB';
+      setTeamFouls(prev => ({
+        ...prev,
+        [teamKey]: {
+          ...prev[teamKey],
+          [quarterKey]: (prev[teamKey][quarterKey] || 0) + 1
+        }
+      }));
+      
+      // Check if player is disqualified (5 fouls)
+      if (currentFouls >= 5) {
+        // Disqualify player
+        setDisqualifiedPlayers(prev => [...prev, playerId]);
+        
+        // Remove from selected players
         setSelectedPlayers(prev => ({
           ...prev,
           [teamKey]: prev[teamKey].filter(id => id !== playerId)
         }));
         
-        showNotification(`Player ${player.playerName} DISQUALIFIED! 5 fouls. Please substitute.`);
+        showNotification(`Player ${player.playerName} DISQUALIFIED! 5 fouls. Select substitute.`);
+        
+        // Auto-open substitution modal - skip step 1, go directly to step 2
         setPlayerToSubOut(playerId);
         setSubstitutionTeam(player.team);
+        setSubstitutionStep(2); // Skip "select player out" step
         setShowSubstitution(true);
         setIsRunning(false); // Pause game for substitution
         setSelectedPlayerForScoring(null);
+      } else {
+        const teamFoulsCount = (teamFouls[teamKey][quarterKey] || 0) + 1;
+        showNotification(`Foul: ${player.playerName} (${currentFouls}/5) | Team ${player.team} fouls: ${teamFoulsCount}/5`);
       }
-    } else if (player) {
-      showNotification(`Foul added to ${player.playerName} (${currentFouls}/5)`);
     }
   };
 
@@ -503,12 +724,35 @@ const ScorerPortal = () => {
     showNotification(`Timeout for ${matchInfo[teamKey]}! 1 minute.`);
   };
 
+  const updateQuarterDuration = () => {
+    const newDuration = editedMinutes * 60;
+    setQuarterDuration(newDuration);
+    setTimerSeconds(newDuration);
+    setShowTimerEditor(false);
+    showNotification(`Quarter duration updated to ${editedMinutes} minutes`);
+  };
+
+  const endQuarterEarly = () => {
+    if (!window.confirm(`End Quarter ${quarter} early?`)) return;
+    
+    // Save current quarter scores
+    const quarterKey = `q${quarter}`;
+    setQuarterScores(prev => ({
+      ...prev,
+      [quarterKey]: { teamA: score.teamA, teamB: score.teamB }
+    }));
+    
+    nextQuarter();
+  };
+
   const nextQuarter = () => {
     if (quarter < 4) {
-      setQuarter(prev => prev + 1);
-      setTimerSeconds(600);
+      const newQuarter = quarter + 1;
+      setQuarter(newQuarter);
+      setTimerSeconds(quarterDuration);
       setIsRunning(false);
-      showNotification(`Quarter ${quarter + 1} ready`);
+      showNotification(`Quarter ${newQuarter} ready - Team fouls reset!`);
+      // Team fouls are already tracked per quarter, no need to reset
     } else if (quarter === 4) {
       // Check for tie
       if (score.teamA === score.teamB) {
@@ -528,14 +772,52 @@ const ScorerPortal = () => {
       showNotification('Overtime finished!');
     }
   };
-
-  const finishMatch = async () => {
-    if (!window.confirm('Are you sure you want to finish this match? This will save the final score.')) {
+  
+  const openEndMatchModal = () => {
+    setIsRunning(false);
+    // Auto-select winner based on score
+    if (score.teamA > score.teamB) {
+      setSelectedWinner('teamA');
+    } else if (score.teamB > score.teamA) {
+      setSelectedWinner('teamB');
+    } else {
+      setSelectedWinner('tie');
+    }
+    setShowEndMatchModal(true);
+  };
+  
+  const discardMatch = () => {
+    if (!window.confirm('Are you sure you want to discard this match? All progress will be lost!')) {
       return;
     }
+    
+    // Clear from Realtime Database
+    getFirebaseDatabase().then(({ database, ref, set }) => {
+      set(ref(database, 'matches/current'), null);
+    });
+    
+    // Clear localStorage
+    localStorage.removeItem(`match_state_${matchInfo.matchId}`);
+    
+    alert('Match discarded');
+    navigate('/schedule');
+  };
 
+  const finishMatch = async () => {
+    setShowEndMatchModal(false);
+    
     try {
       const { firestore, collection, query, where, getDocs, updateDoc, doc } = await getFirestoreUtils();
+      
+      // Determine winner
+      let winnerTeam;
+      if (selectedWinner === 'teamA') {
+        winnerTeam = matchInfo.teamA;
+      } else if (selectedWinner === 'teamB') {
+        winnerTeam = matchInfo.teamB;
+      } else {
+        winnerTeam = 'Tie';
+      }
       
       // Find the match document
       const matchesRef = collection(firestore, 'scheduledMatches');
@@ -554,7 +836,7 @@ const ScorerPortal = () => {
           },
           quarterScores: quarterScores,
           completedAt: new Date(),
-          winner: score.teamA > score.teamB ? matchInfo.teamA : score.teamB > score.teamA ? matchInfo.teamB : 'Tie',
+          winner: winnerTeam,
           playerStats: playerStats
         });
         
@@ -575,7 +857,7 @@ const ScorerPortal = () => {
             completedAt: Date.now(),
             date: matchInfo.date,
             venue: matchInfo.venue,
-            winner: score.teamA > score.teamB ? matchInfo.teamA : score.teamB > score.teamA ? matchInfo.teamB : 'Tie',
+            winner: winnerTeam,
             matchStage: 'finished'
           };
           
@@ -608,7 +890,10 @@ const ScorerPortal = () => {
           // Continue anyway - Firestore save succeeded
         }
         
-        alert('Match completed and saved successfully!');
+        // Clear saved match state from localStorage
+        localStorage.removeItem(`match_state_${matchInfo.matchId}`);
+        
+        alert(`Match completed! Winner: ${winnerTeam}\n\n${matchInfo.teamA}: ${score.teamA}\n${matchInfo.teamB}: ${score.teamB}`);
         navigate('/schedule');
       }
     } catch (error) {
@@ -846,23 +1131,57 @@ const ScorerPortal = () => {
       
       <div className="portal-header">
         <h1><Trophy size={32} /> Live Match</h1>
-        <button onClick={handleLogout} className="logout-btn">
-          <LogOut size={20} /> Logout
-        </button>
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+          <button 
+            onClick={handleSwitchSides} 
+            className="switch-sides-btn"
+            title="Switch Team A and Team B positions"
+          >
+            <ArrowLeftRight size={18} />
+            Switch Sides
+          </button>
+          <button onClick={handleLogout} className="logout-btn">
+            <LogOut size={20} /> Logout
+          </button>
+        </div>
       </div>
+
+      {/* Score Delay Indicator */}
+      {pendingScoreUpdate && delayTimer !== null && (
+        <motion.div 
+          className="score-delay-indicator"
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+          <div className="delay-info">
+            <Clock size={16} />
+            <span>Score will sync in {delayTimer}s</span>
+            <button 
+              onClick={cancelPendingScoreUpdate}
+              className="cancel-delay-btn"
+              title="Cancel pending score update"
+            >
+              <XIcon size={16} />
+            </button>
+          </div>
+        </motion.div>
+      )}
 
       {/* Scoreboard */}
       <div className="scoreboard">
         <div className="team-score">
-          <h2>{matchInfo.teamA}</h2>
-          <div className="score">{score.teamA}</div>
+          <h2>{sidesSwapped ? matchInfo.teamB : matchInfo.teamA}</h2>
+          <div className="score">{sidesSwapped ? score.teamB : score.teamA}</div>
+          <div className="team-fouls-display">
+            Team Fouls: {(sidesSwapped ? teamFouls.teamB : teamFouls.teamA)[`q${quarter <= 5 ? quarter : 5}`] || 0}/5
+          </div>
           <div className="timeout-info">
             <button 
               className="timeout-btn"
-              onClick={() => requestTimeout('A')}
-              disabled={timeoutActive || timeouts.teamA[`q${quarter}`] === 0}
+              onClick={() => requestTimeout(sidesSwapped ? 'B' : 'A')}
+              disabled={timeoutActive || (sidesSwapped ? timeouts.teamB : timeouts.teamA)[`q${quarter}`] === 0}
             >
-              ⏱️ Timeout ({timeouts.teamA[`q${quarter}`]})
+              ⏱️ Timeout ({(sidesSwapped ? timeouts.teamB : timeouts.teamA)[`q${quarter}`]})
             </button>
           </div>
         </div>
@@ -896,22 +1215,47 @@ const ScorerPortal = () => {
             >
               {isRunning ? <Pause size={20} /> : <Play size={20} />}
             </button>
-            <button onClick={() => setTimerSeconds(600)} className="timer-btn">
+            <button onClick={() => setTimerSeconds(quarterDuration)} className="timer-btn">
               <RotateCcw size={20} />
+            </button>
+            <button 
+              onClick={() => setShowTimerEditor(true)} 
+              className="timer-btn timer-edit-btn"
+              title="Edit Quarter Duration"
+            >
+              <Clock size={16} />
+            </button>
+          </div>
+          <div className="match-controls">
+            <button 
+              onClick={endQuarterEarly} 
+              className="end-quarter-btn"
+              disabled={timeoutActive}
+            >
+              End Quarter
+            </button>
+            <button 
+              onClick={openEndMatchModal} 
+              className="end-match-btn"
+            >
+              End Match
             </button>
           </div>
         </div>
         
         <div className="team-score">
-          <h2>{matchInfo.teamB}</h2>
-          <div className="score">{score.teamB}</div>
+          <h2>{sidesSwapped ? matchInfo.teamA : matchInfo.teamB}</h2>
+          <div className="score">{sidesSwapped ? score.teamA : score.teamB}</div>
+          <div className="team-fouls-display">
+            Team Fouls: {(sidesSwapped ? teamFouls.teamA : teamFouls.teamB)[`q${quarter <= 5 ? quarter : 5}`] || 0}/5
+          </div>
           <div className="timeout-info">
             <button 
               className="timeout-btn"
-              onClick={() => requestTimeout('B')}
-              disabled={timeoutActive || timeouts.teamB[`q${quarter}`] === 0}
+              onClick={() => requestTimeout(sidesSwapped ? 'A' : 'B')}
+              disabled={timeoutActive || (sidesSwapped ? timeouts.teamA : timeouts.teamB)[`q${quarter}`] === 0}
             >
-              ⏱️ Timeout ({timeouts.teamB[`q${quarter}`]})
+              ⏱️ Timeout ({(sidesSwapped ? timeouts.teamA : timeouts.teamB)[`q${quarter}`]})
             </button>
           </div>
         </div>
@@ -931,21 +1275,21 @@ const ScorerPortal = () => {
 
       {/* Side-by-Side Teams Layout */}
       <div className="teams-side-by-side">
-        {/* Team A - Left Side */}
+        {/* Left Side Team (swapped based on sidesSwapped) */}
         <div className="team-column">
           <div className="team-header-wide">
-            <h3>{matchInfo.teamA}</h3>
+            <h3>{sidesSwapped ? matchInfo.teamB : matchInfo.teamA}</h3>
             <button 
               className="substitute-btn-small"
-              onClick={() => openSubstitutionModal('A')}
+              onClick={() => openSubstitutionModal(sidesSwapped ? 'B' : 'A')}
             >
               <Users size={14} /> Sub
             </button>
           </div>
 
-          {/* Team A Players - Playing 5 Only */}
+          {/* Left Team Players - Playing 5 Only */}
           <div className="players-row">
-            {teamAPlaying.map((player, index) => (
+            {(sidesSwapped ? teamBPlaying : teamAPlaying).map((player, index) => (
               <div 
                 key={player.id} 
                 className={`player-box ${selectedPlayerForScoring === player.id ? 'selected-for-scoring' : ''}`}
@@ -961,13 +1305,14 @@ const ScorerPortal = () => {
             ))}
           </div>
 
-          {/* Team A Scoring Controls */}
+          {/* Left Team Scoring Controls */}
           <div className="team-scoring-controls">
             <div className="score-buttons-compact">
               <button 
                 onClick={() => {
-                  if (!selectedPlayerForScoring || !teamAPlaying.find(p => p.id === selectedPlayerForScoring)) {
-                    showNotification('Please select a Team A player!');
+                  const leftTeamPlaying = sidesSwapped ? teamBPlaying : teamAPlaying;
+                  if (!selectedPlayerForScoring || !leftTeamPlaying.find(p => p.id === selectedPlayerForScoring)) {
+                    showNotification(`Please select a ${sidesSwapped ? matchInfo.teamB : matchInfo.teamA} player!`);
                     return;
                   }
                   addPoints(1);
@@ -978,8 +1323,9 @@ const ScorerPortal = () => {
               </button>
               <button 
                 onClick={() => {
-                  if (!selectedPlayerForScoring || !teamAPlaying.find(p => p.id === selectedPlayerForScoring)) {
-                    showNotification('Please select a Team A player!');
+                  const leftTeamPlaying = sidesSwapped ? teamBPlaying : teamAPlaying;
+                  if (!selectedPlayerForScoring || !leftTeamPlaying.find(p => p.id === selectedPlayerForScoring)) {
+                    showNotification(`Please select a ${sidesSwapped ? matchInfo.teamB : matchInfo.teamA} player!`);
                     return;
                   }
                   addPoints(2);
@@ -990,8 +1336,9 @@ const ScorerPortal = () => {
               </button>
               <button 
                 onClick={() => {
-                  if (!selectedPlayerForScoring || !teamAPlaying.find(p => p.id === selectedPlayerForScoring)) {
-                    showNotification('Please select a Team A player!');
+                  const leftTeamPlaying = sidesSwapped ? teamBPlaying : teamAPlaying;
+                  if (!selectedPlayerForScoring || !leftTeamPlaying.find(p => p.id === selectedPlayerForScoring)) {
+                    showNotification(`Please select a ${sidesSwapped ? matchInfo.teamB : matchInfo.teamA} player!`);
                     return;
                   }
                   addPoints(3);
@@ -1002,8 +1349,9 @@ const ScorerPortal = () => {
               </button>
               <button 
                 onClick={() => {
-                  if (!selectedPlayerForScoring || !teamAPlaying.find(p => p.id === selectedPlayerForScoring)) {
-                    showNotification('Please select a Team A player!');
+                  const leftTeamPlaying = sidesSwapped ? teamBPlaying : teamAPlaying;
+                  if (!selectedPlayerForScoring || !leftTeamPlaying.find(p => p.id === selectedPlayerForScoring)) {
+                    showNotification(`Please select a ${sidesSwapped ? matchInfo.teamB : matchInfo.teamA} player!`);
                     return;
                   }
                   addFoul();
@@ -1020,21 +1368,21 @@ const ScorerPortal = () => {
           </div>
         </div>
 
-        {/* Team B - Right Side */}
+        {/* Right Side Team (swapped based on sidesSwapped) */}
         <div className="team-column">
           <div className="team-header-wide">
-            <h3>{matchInfo.teamB}</h3>
+            <h3>{sidesSwapped ? matchInfo.teamA : matchInfo.teamB}</h3>
             <button 
               className="substitute-btn-small"
-              onClick={() => openSubstitutionModal('B')}
+              onClick={() => openSubstitutionModal(sidesSwapped ? 'A' : 'B')}
             >
               <Users size={14} /> Sub
             </button>
           </div>
 
-          {/* Team B Players - Playing 5 Only */}
+          {/* Right Team Players - Playing 5 Only */}
           <div className="players-row">
-            {teamBPlaying.map((player, index) => (
+            {(sidesSwapped ? teamAPlaying : teamBPlaying).map((player, index) => (
               <div 
                 key={player.id} 
                 className={`player-box ${selectedPlayerForScoring === player.id ? 'selected-for-scoring' : ''}`}
@@ -1050,13 +1398,14 @@ const ScorerPortal = () => {
             ))}
           </div>
 
-          {/* Team B Scoring Controls */}
+          {/* Right Team Scoring Controls */}
           <div className="team-scoring-controls">
             <div className="score-buttons-compact">
               <button 
                 onClick={() => {
-                  if (!selectedPlayerForScoring || !teamBPlaying.find(p => p.id === selectedPlayerForScoring)) {
-                    showNotification('Please select a Team B player!');
+                  const rightTeamPlaying = sidesSwapped ? teamAPlaying : teamBPlaying;
+                  if (!selectedPlayerForScoring || !rightTeamPlaying.find(p => p.id === selectedPlayerForScoring)) {
+                    showNotification(`Please select a ${sidesSwapped ? matchInfo.teamA : matchInfo.teamB} player!`);
                     return;
                   }
                   addPoints(1);
@@ -1067,8 +1416,9 @@ const ScorerPortal = () => {
               </button>
               <button 
                 onClick={() => {
-                  if (!selectedPlayerForScoring || !teamBPlaying.find(p => p.id === selectedPlayerForScoring)) {
-                    showNotification('Please select a Team B player!');
+                  const rightTeamPlaying = sidesSwapped ? teamAPlaying : teamBPlaying;
+                  if (!selectedPlayerForScoring || !rightTeamPlaying.find(p => p.id === selectedPlayerForScoring)) {
+                    showNotification(`Please select a ${sidesSwapped ? matchInfo.teamA : matchInfo.teamB} player!`);
                     return;
                   }
                   addPoints(2);
@@ -1079,8 +1429,9 @@ const ScorerPortal = () => {
               </button>
               <button 
                 onClick={() => {
-                  if (!selectedPlayerForScoring || !teamBPlaying.find(p => p.id === selectedPlayerForScoring)) {
-                    showNotification('Please select a Team B player!');
+                  const rightTeamPlaying = sidesSwapped ? teamAPlaying : teamBPlaying;
+                  if (!selectedPlayerForScoring || !rightTeamPlaying.find(p => p.id === selectedPlayerForScoring)) {
+                    showNotification(`Please select a ${sidesSwapped ? matchInfo.teamA : matchInfo.teamB} player!`);
                     return;
                   }
                   addPoints(3);
@@ -1091,8 +1442,9 @@ const ScorerPortal = () => {
               </button>
               <button 
                 onClick={() => {
-                  if (!selectedPlayerForScoring || !teamBPlaying.find(p => p.id === selectedPlayerForScoring)) {
-                    showNotification('Please select a Team B player!');
+                  const rightTeamPlaying = sidesSwapped ? teamAPlaying : teamBPlaying;
+                  if (!selectedPlayerForScoring || !rightTeamPlaying.find(p => p.id === selectedPlayerForScoring)) {
+                    showNotification(`Please select a ${sidesSwapped ? matchInfo.teamA : matchInfo.teamB} player!`);
                     return;
                   }
                   addFoul();
@@ -1226,6 +1578,223 @@ const ScorerPortal = () => {
                   </button>
                 </>
               )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Logout Confirmation Modal */}
+      <AnimatePresence>
+        {showLogoutConfirm && (
+          <div className="modal-overlay" onClick={() => {}}>
+            <motion.div
+              className="substitution-modal"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              style={{ maxWidth: '500px' }}
+            >
+              <div className="modal-header-sub">
+                <h2>⚠️ Confirm Logout</h2>
+                <p>Match is in progress. Your progress is automatically saved and you can resume later.</p>
+                <p style={{ marginTop: '10px', fontSize: '14px', color: '#666' }}>
+                  When you log back in with the same match, you'll be able to continue from where you left off.
+                </p>
+              </div>
+              <div style={{ display: 'flex', gap: '10px', marginTop: '20px', justifyContent: 'center' }}>
+                <button 
+                  className="cancel-sub-btn"
+                  onClick={cancelLogout}
+                  style={{ flex: 1, background: '#4CAF50' }}
+                >
+                  Stay & Continue
+                </button>
+                <button 
+                  className="cancel-sub-btn"
+                  onClick={confirmLogout}
+                  style={{ flex: 1, background: '#f44336' }}
+                >
+                  Logout
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Timer Editor Modal */}
+      <AnimatePresence>
+        {showTimerEditor && (
+          <div className="modal-overlay" onClick={() => setShowTimerEditor(false)}>
+            <motion.div
+              className="substitution-modal"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              style={{ maxWidth: '400px' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="modal-header-sub">
+                <h2>⏱️ Edit Quarter Duration</h2>
+                <p style={{ marginTop: '10px', fontSize: '14px', color: '#666' }}>
+                  Set the duration for each quarter (in minutes)
+                </p>
+              </div>
+              <div style={{ marginTop: '20px' }}>
+                <label style={{ display: 'block', marginBottom: '10px', fontSize: '14px', color: '#999' }}>
+                  Minutes per Quarter:
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="20"
+                  value={editedMinutes}
+                  onChange={(e) => setEditedMinutes(parseInt(e.target.value) || 10)}
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    fontSize: '18px',
+                    borderRadius: '8px',
+                    border: '2px solid #FF6B35',
+                    background: '#1a1a1a',
+                    color: 'white',
+                    textAlign: 'center'
+                  }}
+                />
+                <p style={{ marginTop: '10px', fontSize: '12px', color: '#666', textAlign: 'center' }}>
+                  Current: {Math.floor(quarterDuration / 60)} minutes
+                </p>
+              </div>
+              <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+                <button 
+                  className="cancel-sub-btn"
+                  onClick={() => setShowTimerEditor(false)}
+                  style={{ flex: 1, background: '#666' }}
+                >
+                  Cancel
+                </button>
+                <button 
+                  className="cancel-sub-btn"
+                  onClick={updateQuarterDuration}
+                  style={{ flex: 1, background: '#FF6B35' }}
+                >
+                  Apply
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* End Match Modal */}
+      <AnimatePresence>
+        {showEndMatchModal && (
+          <div className="modal-overlay" onClick={() => {}}>
+            <motion.div
+              className="substitution-modal"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              style={{ maxWidth: '600px' }}
+            >
+              <div className="modal-header-sub">
+                <h2>🏆 End Match</h2>
+                <p style={{ marginTop: '10px', fontSize: '16px', fontWeight: '600' }}>
+                  {matchInfo.teamA} {score.teamA} - {score.teamB} {matchInfo.teamB}
+                </p>
+              </div>
+              
+              <div style={{ marginTop: '30px' }}>
+                <h3 style={{ fontSize: '18px', marginBottom: '15px', color: '#FF6B35' }}>Announce Winner:</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <button
+                    className={`winner-option ${selectedWinner === 'teamA' ? 'selected-winner' : ''}`}
+                    onClick={() => setSelectedWinner('teamA')}
+                    style={{
+                      padding: '15px',
+                      borderRadius: '10px',
+                      border: selectedWinner === 'teamA' ? '3px solid #4CAF50' : '2px solid #333',
+                      background: selectedWinner === 'teamA' ? 'rgba(76, 175, 80, 0.2)' : '#1a1a1a',
+                      color: 'white',
+                      fontSize: '16px',
+                      cursor: 'pointer',
+                      transition: 'all 0.3s',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center'
+                    }}
+                  >
+                    <span>{matchInfo.teamA}</span>
+                    <span style={{ fontSize: '20px', fontWeight: '900' }}>{score.teamA}</span>
+                  </button>
+                  
+                  <button
+                    className={`winner-option ${selectedWinner === 'teamB' ? 'selected-winner' : ''}`}
+                    onClick={() => setSelectedWinner('teamB')}
+                    style={{
+                      padding: '15px',
+                      borderRadius: '10px',
+                      border: selectedWinner === 'teamB' ? '3px solid #4CAF50' : '2px solid #333',
+                      background: selectedWinner === 'teamB' ? 'rgba(76, 175, 80, 0.2)' : '#1a1a1a',
+                      color: 'white',
+                      fontSize: '16px',
+                      cursor: 'pointer',
+                      transition: 'all 0.3s',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center'
+                    }}
+                  >
+                    <span>{matchInfo.teamB}</span>
+                    <span style={{ fontSize: '20px', fontWeight: '900' }}>{score.teamB}</span>
+                  </button>
+                  
+                  <button
+                    className={`winner-option ${selectedWinner === 'tie' ? 'selected-winner' : ''}`}
+                    onClick={() => setSelectedWinner('tie')}
+                    style={{
+                      padding: '15px',
+                      borderRadius: '10px',
+                      border: selectedWinner === 'tie' ? '3px solid #FFC107' : '2px solid #333',
+                      background: selectedWinner === 'tie' ? 'rgba(255, 193, 7, 0.2)' : '#1a1a1a',
+                      color: 'white',
+                      fontSize: '16px',
+                      cursor: 'pointer',
+                      transition: 'all 0.3s',
+                      textAlign: 'center'
+                    }}
+                  >
+                    🤝 Declare Tie
+                  </button>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px', marginTop: '30px' }}>
+                <button 
+                  className="cancel-sub-btn"
+                  onClick={() => {
+                    setShowEndMatchModal(false);
+                    setIsRunning(false);
+                  }}
+                  style={{ flex: 1, background: '#666' }}
+                >
+                  Cancel
+                </button>
+                <button 
+                  className="cancel-sub-btn"
+                  onClick={discardMatch}
+                  style={{ flex: 1, background: '#f44336' }}
+                >
+                  🗑️ Discard
+                </button>
+                <button 
+                  className="cancel-sub-btn"
+                  onClick={finishMatch}
+                  style={{ flex: 1, background: '#4CAF50', fontSize: '16px', fontWeight: '700' }}
+                >
+                  ✓ Save & Finish
+                </button>
+              </div>
             </motion.div>
           </div>
         )}
