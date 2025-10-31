@@ -77,13 +77,13 @@ const Gallery = () => {
               Get live updates, behind-the-scenes content, and exclusive photos from the tournament
             </p>
             <a
-              href="https://instagram.com/nmims"
+              href="https://www.instagram.com/nmims_hyderabad/"
               target="_blank"
               rel="noopener noreferrer"
               className="btn btn-primary"
             >
               <Instagram size={20} />
-              @nmims_official
+              @nmims_hyderabad
             </a>
           </div>
         </motion.div>

@@ -13,7 +13,7 @@ const Footer = () => {
             Experience the thrill, passion, and sportsmanship!
           </p>
           <div className="social-links">
-            <a href="https://instagram.com/nmims" target="_blank" rel="noopener noreferrer" className="social-link">
+            <a href="https://www.instagram.com/nmims_hyderabad/" target="_blank" rel="noopener noreferrer" className="social-link">
               <Instagram size={20} />
             </a>
             <a href="mailto:sports@nmims.edu" className="social-link">

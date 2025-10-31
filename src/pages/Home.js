@@ -6,23 +6,25 @@ import LazyBasketball3D from '../components/LazyBasketball3D';
 import './Home.css';
 
 const Home = () => {
-  const features = [
-    {
-      icon: <Calendar size={40} />,
-      title: 'November 4-5, 2025',
-      description: 'Boys & Girls knockout tournament - the ultimate basketball showdown'
-    },
-    {
-      icon: <MapPin size={40} />,
-      title: 'NMIMS Jadcherla',
-      description: 'State-of-the-art basketball facilities at Hyderabad Campus'
-    },
-    {
-      icon: <Trophy size={40} />,
-      title: 'Championship Glory',
-      description: 'Compete for the Inter-NMIMS title'
-    },
-    
+  const tournamentHighlights = [
+    { title: 'Practice Sessions', emoji: '🏃', description: 'Teams warming up' },
+    { title: 'Opening Ceremony', emoji: '🎉', description: 'Grand opening' },
+    { title: 'Jersey Reveal', emoji: '👕', description: 'Team uniforms' },
+    { title: 'Trophy Reveal', emoji: '🏆', description: 'Championship prize' },
+    { title: 'Three Pointers', emoji: '🎯', description: 'Long range shots' },
+    { title: 'Fast Breaks', emoji: '⚡', description: 'Lightning attacks' },
+    { title: 'Rebounder Action', emoji: '🔄', description: 'Board control' },
+    { title: 'Closing Ceremony', emoji: '🎊', description: 'Victory celebration' }
+  ];
+
+  const participatingTeams = [
+    { id: 1, name: 'NMIMS Hyderabad' },
+    { id: 2, name: 'NMIMS Mumbai' },
+    { id: 3, name: 'NMIMS Navi-Mumbai' },
+    { id: 4, name: 'NMIMS Indore' },
+    { id: 5, name: 'NMIMS Shirpur' },
+    { id: 6, name: 'NMIMS Chandigarh' },
+    { id: 7, name: 'NMIMS Bengaluru' }
   ];
 
   return (
@@ -96,8 +98,8 @@ const Home = () => {
         </div>
       </section>
 
-      {/* Features Section */}
-      <section className="features section">
+      {/* Tournament Highlights - Polaroid Gallery */}
+      <section className="highlights-gallery section">
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -106,26 +108,68 @@ const Home = () => {
         >
           <h2 className="section-title">TOURNAMENT HIGHLIGHTS</h2>
           <p className="section-subtitle">
-            Everything you need to know about the event
+            Moments that make the tournament unforgettable
           </p>
         </motion.div>
 
-        <div className="features-grid">
-          {features.map((feature, index) => (
+        <div className="polaroid-grid">
+          {tournamentHighlights.map((highlight, index) => (
             <motion.div
               key={index}
-              className="feature-card glass-card"
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
+              className="polaroid-card"
+              initial={{ opacity: 0, y: 30, rotate: 0 }}
+              whileInView={{ opacity: 1, y: 0, rotate: Math.random() * 6 - 3 }}
               viewport={{ once: true }}
-              transition={{ delay: index * 0.1, duration: 0.5 }}
-              whileHover={{ scale: 1.05 }}
+              transition={{ delay: index * 0.08, duration: 0.5 }}
+              whileHover={{ scale: 1.05, rotate: 0, zIndex: 10 }}
             >
-              <div className="feature-icon">{feature.icon}</div>
-              <h3 className="feature-title">{feature.title}</h3>
-              <p className="feature-description">{feature.description}</p>
+              <div className="polaroid-photo">
+                <div className="photo-placeholder">
+                  <span className="photo-emoji">{highlight.emoji}</span>
+                </div>
+              </div>
+              <div className="polaroid-caption">
+                <h3 className="highlight-title">{highlight.title}</h3>
+                <p className="highlight-desc">{highlight.description}</p>
+              </div>
             </motion.div>
           ))}
+        </div>
+      </section>
+
+      {/* Participating Teams Section */}
+      <section className="teams-section section">
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.6 }}
+        >
+          <h2 className="section-title">PARTICIPATING TEAMS</h2>
+          <p className="section-subtitle">
+            Meet the champions competing in the tournament
+          </p>
+        </motion.div>
+
+        <div className="teams-carousel-container">
+          <div className="teams-carousel">
+            {[...participatingTeams, ...participatingTeams].map((team, index) => (
+              <motion.div
+                key={`${team.id}-${index}`}
+                className="team-card"
+                initial={{ opacity: 0, scale: 0.9 }}
+                whileInView={{ opacity: 1, scale: 1 }}
+                viewport={{ once: true }}
+                transition={{ delay: index * 0.05, duration: 0.4 }}
+                whileHover={{ scale: 1.05 }}
+              >
+                <div className="team-logo-circle">
+                  <span className="team-icon">🏀</span>
+                </div>
+                <h3 className="team-name">{team.name}</h3>
+              </motion.div>
+            ))}
+          </div>
         </div>
       </section>
 
